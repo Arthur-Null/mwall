@@ -24,7 +24,9 @@ import Testing
     #expect(configurations.count == 3)
     for configuration in configurations {
         #expect(configuration["type"] as? String == "imageFile")
-        #expect(configuration["relative"] as? String == imageURL.absoluteString)
+        let url = configuration["url"] as? [String: Any]
+        #expect(url?["relative"] as? String == imageURL.absoluteString)
+        #expect(configuration["relative"] == nil)
     }
 }
 
@@ -69,7 +71,9 @@ private func configurationData(for imageURL: URL) throws -> Data {
     try PropertyListSerialization.data(
         fromPropertyList: [
             "type": "imageFile",
-            "relative": imageURL.absoluteString
+            "url": [
+                "relative": imageURL.absoluteString
+            ]
         ],
         format: .binary,
         options: 0

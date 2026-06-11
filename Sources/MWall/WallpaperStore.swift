@@ -79,9 +79,11 @@ enum WallpaperStore {
     }
 
     private static func imageConfigurationData(for imageURL: URL) throws -> Data {
-        let configuration: [String: String] = [
+        let configuration: [String: Any] = [
             "type": "imageFile",
-            "relative": imageURL.absoluteString
+            "url": [
+                "relative": imageURL.absoluteString
+            ]
         ]
         return try PropertyListSerialization.data(fromPropertyList: configuration, format: .binary, options: 0)
     }

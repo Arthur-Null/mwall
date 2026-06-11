@@ -35,3 +35,7 @@ _Avoid_: 预览图应用到桌面, 浏览时触发下载统计
 **所有桌面**:
 把同一张壁纸应用到当前显示器和 Mission Control 中的隐藏 Space。现代 macOS 的持久状态在 `~/Library/Application Support/com.apple.wallpaper/Store/Index.plist`，不能只依赖 `System Events desktops`，后者只适合作为旧系统 fallback。
 _Avoid_: 当前桌面, 当前显示器, 只刷新 NSWorkspace screen
+
+**壁纸 Configuration**:
+`Index.plist` 中 `Desktop.Content.Choices[0].Configuration` 是二进制 plist。当前 macOS 认可的图片结构是 `type = imageFile` 和 `url.relative = file:///...`；不要写旧的扁平 `relative` 字段。
+_Avoid_: relative = file:///..., 自造配置结构
