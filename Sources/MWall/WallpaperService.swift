@@ -7,8 +7,9 @@ enum WallpaperService {
 
     static func setDesktopImage(_ url: URL, allScreens: Bool) throws {
         if allScreens {
-            try setEveryDesktopImage(url)
             try setScreenImages(url, screens: NSScreen.screens)
+            waitForSystemWallpaperAgentWriteback()
+            try setEveryDesktopImage(url)
             return
         }
 
@@ -72,6 +73,15 @@ enum WallpaperService {
                 ]
             )
         }
+    }
+
+    private static func waitForSystemWallpaperAgentWriteback() {
+        guard FileManager.default.fileExists(atPath: WallpaperStore.systemIndexURL.path) else {
+            return
+        }
+
+        // NSWorkspace can trigger WallpaperAgent to rewrite hidden Space state a few seconds later.
+        Thread.sleep(forTimeInterval: 8)
     }
 
     private static func appleScriptString(_ value: String) -> String {
