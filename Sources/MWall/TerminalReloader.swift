@@ -9,20 +9,6 @@ enum TerminalReloader {
             results.append(run("/usr/bin/env", ["kitty", "@", "set-colors", "-a", path], label: "Kitty"))
         }
 
-        if targets.contains(.wezterm), commandExists("wezterm") {
-            results.append(run("/usr/bin/env", ["wezterm", "cli", "reload-configuration"], label: "WezTerm"))
-        }
-
-        if targets.contains(.iterm2) {
-            let path = StorePaths.appSupport.appendingPathComponent("MWall.itermcolors").path
-            results.append(run("/usr/bin/open", [path], label: "iTerm2 import"))
-        }
-
-        if targets.contains(.terminal) {
-            let path = StorePaths.appSupport.appendingPathComponent("Apply-MWall-Terminal.applescript").path
-            results.append(run("/usr/bin/osascript", [path], label: "Terminal.app"))
-        }
-
         return results
     }
 

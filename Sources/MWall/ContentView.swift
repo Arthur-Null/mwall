@@ -108,6 +108,11 @@ struct ContentView: View {
                 ))
                 Spacer()
                 Button {
+                    store.copyCodexThemeForSelectedOrLatest()
+                } label: {
+                    Label("复制 Codex", systemImage: "doc.on.doc")
+                }
+                Button {
                     store.applyThemeForSelectedOrLatest()
                 } label: {
                     Label("生成主题", systemImage: "paintpalette")

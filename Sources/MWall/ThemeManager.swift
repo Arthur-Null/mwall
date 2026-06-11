@@ -13,23 +13,50 @@ enum ThemeManager {
         reloadTerminals: Bool
     ) throws -> ThemeApplyReport {
         var written: [URL] = []
-        for target in targets.sorted(by: { $0.rawValue < $1.rawValue }) {
+        for target in targets.intersection(ThemeTarget.supported).sorted(by: { $0.rawValue < $1.rawValue }) {
             let files = try writer(for: target)(palettes, wallpaperURL)
             written.append(contentsOf: files)
         }
-        let reloads = reloadTerminals ? TerminalReloader.reload(targets: targets) : []
+        let reloads = reloadTerminals ? TerminalReloader.reload(targets: targets.intersection(ThemeTarget.supported)) : []
         return ThemeApplyReport(writtenFiles: written, reloadAttempts: reloads)
     }
 
     private static func writer(for target: ThemeTarget) -> (TerminalPalettePair, URL) throws -> [URL] {
         switch target {
         case .kitty: writeKitty
-        case .alacritty: writeAlacritty
-        case .wezterm: writeWezTerm
         case .ghostty: writeGhostty
-        case .iterm2: writeIterm2
-        case .terminal: writeTerminalScript
+        case .alacritty, .wezterm, .iterm2, .terminal:
+            { _, _ in [] }
         }
+    }
+
+    static func codexImportString(palettes: TerminalPalettePair) throws -> String {
+        let palette = palettes.current
+        let payload = CodexThemeImport(
+            codeThemeId: "everforest",
+            theme: CodexTheme(
+                accent: palette.cursor.hex.lowercased(),
+                contrast: 45,
+                fonts: CodexThemeFonts(
+                    code: "\"Maple Mono NF CN\"",
+                    ui: "\"Maple Mono NF CN\""
+                ),
+                ink: palette.foreground.hex.lowercased(),
+                opaqueWindows: false,
+                semanticColors: CodexSemanticColors(
+                    diffAdded: palette.normal[safe: 2]?.hex.lowercased() ?? palette.cursor.hex.lowercased(),
+                    diffRemoved: palette.normal[safe: 1]?.hex.lowercased() ?? palette.cursor.hex.lowercased(),
+                    skill: palette.normal[safe: 5]?.hex.lowercased() ?? palette.cursor.hex.lowercased()
+                ),
+                surface: palette.background.hex.lowercased()
+            ),
+            variant: palette.background.luminance < 0.5 ? "dark" : "light"
+        )
+        let data = try JSONEncoder.codexTheme.encode(payload)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw NSError(domain: "MWall.CodexTheme", code: 1, userInfo: [NSLocalizedDescriptionKey: "无法生成 Codex 主题字符串"])
+        }
+        return "codex-theme-v1:\(json)"
     }
 
     private static func writeKitty(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
@@ -257,5 +284,46 @@ enum ThemeManager {
 
     private static func appleRGB(_ color: RGBColor) -> String {
         "\(color.r * 257), \(color.g * 257), \(color.b * 257)"
+    }
+}
+
+private struct CodexThemeImport: Encodable {
+    var codeThemeId: String
+    var theme: CodexTheme
+    var variant: String
+}
+
+private struct CodexTheme: Encodable {
+    var accent: String
+    var contrast: Int
+    var fonts: CodexThemeFonts
+    var ink: String
+    var opaqueWindows: Bool
+    var semanticColors: CodexSemanticColors
+    var surface: String
+}
+
+private struct CodexThemeFonts: Encodable {
+    var code: String
+    var ui: String
+}
+
+private struct CodexSemanticColors: Encodable {
+    var diffAdded: String
+    var diffRemoved: String
+    var skill: String
+}
+
+private extension Array {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
+}
+
+private extension JSONEncoder {
+    static var codexTheme: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return encoder
     }
 }

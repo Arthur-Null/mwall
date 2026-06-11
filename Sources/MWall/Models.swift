@@ -92,18 +92,21 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    static let allCases: [ThemeTarget] = [.kitty, .ghostty]
+
     var displayName: String {
         switch self {
         case .kitty: "Kitty"
+        case .ghostty: "Ghostty"
         case .alacritty: "Alacritty"
         case .wezterm: "WezTerm"
-        case .ghostty: "Ghostty"
         case .iterm2: "iTerm2"
         case .terminal: "Terminal.app"
         }
     }
 
-    static let defaultEnabled: [ThemeTarget] = [.kitty, .alacritty, .wezterm, .ghostty]
+    static let supported: Set<ThemeTarget> = Set(allCases)
+    static let defaultEnabled: [ThemeTarget] = [.kitty, .ghostty]
 }
 
 enum StorePaths {

@@ -25,6 +25,7 @@ final class AppStore: ObservableObject {
         WallpaperService.ensureBuiltInWallpapers()
 
         settings = Persistence.load(AppSettings.self, from: StorePaths.settings, fallback: AppSettings())
+        pruneUnsupportedThemeTargets()
         localFolders = loadLocalFolders()
         favorites = Persistence.load([WallpaperItem].self, from: StorePaths.favorites, fallback: [])
         history = Persistence.load([HistoryEntry].self, from: StorePaths.history, fallback: [])
@@ -222,6 +223,26 @@ final class AppStore: ObservableObject {
         }
     }
 
+    func copyCodexThemeForSelectedOrLatest() {
+        guard let item = currentWallpaperCandidate() else {
+            lastMessage = "没有可用于生成 Codex 主题的壁纸"
+            return
+        }
+        do {
+            let wallpaperURL = item.fullLocalURL ?? item.url
+            try SecurityScopedBookmarks.withAccess(for: wallpaperURL, folders: localFolders) {
+                let palettes = try PaletteGenerator.generate(from: wallpaperURL)
+                let importString = try ThemeManager.codexImportString(palettes: palettes)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(importString, forType: .string)
+                lastMessage = "已复制 Codex 主题导入字符串"
+            }
+        } catch {
+            lastMessage = "Codex 主题复制失败：\(error.localizedDescription)"
+            NSAlert(error: error).runModal()
+        }
+    }
+
     func cleanupCache() {
         do {
             let removed = try CacheManager.cleanupUnsplashCache(limitMB: settings.unsplashCacheLimitMB)
@@ -274,6 +295,13 @@ final class AppStore: ObservableObject {
         }
         settings.unsplashAccessKey = text
         lastMessage = "已从剪贴板填入 Unsplash Access Key"
+    }
+
+    private func pruneUnsupportedThemeTargets() {
+        settings.enabledThemeTargets.formIntersection(ThemeTarget.supported)
+        if settings.enabledThemeTargets.isEmpty {
+            settings.enabledThemeTargets = Set(ThemeTarget.defaultEnabled)
+        }
     }
 
     private func currentWallpaperCandidate() -> WallpaperItem? {
