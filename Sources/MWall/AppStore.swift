@@ -126,9 +126,9 @@ final class AppStore: ObservableObject {
                 guard settings.applyThemeAfterWallpaperChange else {
                     return
                 }
-                let palette = try PaletteGenerator.generate(from: item.url)
+                let palettes = try PaletteGenerator.generate(from: item.url)
                 let report = try ThemeManager.apply(
-                    palette: palette,
+                    palettes: palettes,
                     wallpaperURL: item.url,
                     targets: settings.enabledThemeTargets,
                     reloadTerminals: settings.reloadTerminalsAfterThemeChange
@@ -168,9 +168,9 @@ final class AppStore: ObservableObject {
         }
         do {
             try SecurityScopedBookmarks.withAccess(for: item.url, folders: localFolders) {
-                let palette = try PaletteGenerator.generate(from: item.url)
+                let palettes = try PaletteGenerator.generate(from: item.url)
                 let report = try ThemeManager.apply(
-                    palette: palette,
+                    palettes: palettes,
                     wallpaperURL: item.url,
                     targets: settings.enabledThemeTargets,
                     reloadTerminals: settings.reloadTerminalsAfterThemeChange

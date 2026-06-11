@@ -34,7 +34,7 @@ MWALL_SANDBOX=1 tools/package_app.sh
 - Unsplash random landscape download with query, cache, and cache cleanup.
 - Apply to current screen or all screens.
 - Favorites and recent wallpaper history.
-- Palette extraction from the applied wallpaper.
+- Dark and light palette extraction from the applied wallpaper.
 - Terminal theme output for Kitty, Alacritty, WezTerm, Ghostty, iTerm2, and Terminal.app helper script.
 - Best-effort terminal reload hooks for Kitty, WezTerm, iTerm2 import, and Terminal.app.
 - Launch at Login toggle when running as `MWall.app`.
@@ -45,12 +45,12 @@ MWall uses the official Unsplash JSON API. Add your Unsplash Access Key in the p
 
 ## Generated Theme Files
 
-- Kitty: `~/.config/kitty/themes/mwall.conf`
-- Alacritty: `~/.config/alacritty/themes/mwall.toml`
-- WezTerm: `~/.config/wezterm/colors/mwall.toml`
-- Ghostty: `~/.config/ghostty/themes/mwall`
-- iTerm2: `~/Library/Application Support/MWall/MWall.itermcolors`
-- Terminal.app helper: `~/Library/Application Support/MWall/Apply-MWall-Terminal.applescript`
+- Kitty: `~/.config/kitty/themes/mwall.conf`, `mwall-dark.conf`, `mwall-light.conf`
+- Alacritty: `~/.config/alacritty/themes/mwall.toml`, `mwall-dark.toml`, `mwall-light.toml`
+- WezTerm: `~/.config/wezterm/colors/mwall.toml`, `mwall-dark.toml`, `mwall-light.toml`
+- Ghostty: `~/.config/ghostty/themes/mwall`, `mwall-dark`, `mwall-light`
+- iTerm2: `~/Library/Application Support/MWall/MWall.itermcolors`, `MWall Dark.itermcolors`, `MWall Light.itermcolors`
+- Terminal.app helper: `~/Library/Application Support/MWall/Apply-MWall-Terminal.applescript`, plus dark/light variants
 
 Most terminals need their main config to import the generated theme file, or a manual import in the app UI.
 
@@ -78,5 +78,7 @@ config.color_scheme = "mwall"
 Ghostty:
 
 ```conf
-theme = mwall
+theme = dark:mwall-dark,light:mwall-light
 ```
+
+For terminals that do not have automatic light/dark theme switching, `mwall.conf` / `mwall.toml` / `mwall` is regenerated from the current macOS appearance when MWall writes themes.

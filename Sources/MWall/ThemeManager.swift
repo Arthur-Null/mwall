@@ -7,21 +7,21 @@ struct ThemeApplyReport {
 
 enum ThemeManager {
     static func apply(
-        palette: TerminalPalette,
+        palettes: TerminalPalettePair,
         wallpaperURL: URL,
         targets: Set<ThemeTarget>,
         reloadTerminals: Bool
     ) throws -> ThemeApplyReport {
         var written: [URL] = []
         for target in targets.sorted(by: { $0.rawValue < $1.rawValue }) {
-            let files = try writer(for: target)(palette, wallpaperURL)
+            let files = try writer(for: target)(palettes, wallpaperURL)
             written.append(contentsOf: files)
         }
         let reloads = reloadTerminals ? TerminalReloader.reload(targets: targets) : []
         return ThemeApplyReport(writtenFiles: written, reloadAttempts: reloads)
     }
 
-    private static func writer(for target: ThemeTarget) -> (TerminalPalette, URL) throws -> [URL] {
+    private static func writer(for target: ThemeTarget) -> (TerminalPalettePair, URL) throws -> [URL] {
         switch target {
         case .kitty: writeKitty
         case .alacritty: writeAlacritty
@@ -32,9 +32,18 @@ enum ThemeManager {
         }
     }
 
-    private static func writeKitty(_ palette: TerminalPalette, _ wallpaperURL: URL) throws -> [URL] {
-        let url = home(".config/kitty/themes/mwall.conf")
-        let lines = header(wallpaperURL) + [
+    private static func writeKitty(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
+        let dark = home(".config/kitty/themes/mwall-dark.conf")
+        let light = home(".config/kitty/themes/mwall-light.conf")
+        let current = home(".config/kitty/themes/mwall.conf")
+        try write(kittyConfig(palette: palettes.dark, wallpaperURL: wallpaperURL, mode: "dark"), to: dark)
+        try write(kittyConfig(palette: palettes.light, wallpaperURL: wallpaperURL, mode: "light"), to: light)
+        try write(kittyConfig(palette: palettes.current, wallpaperURL: wallpaperURL, mode: "current"), to: current)
+        return [dark, light, current]
+    }
+
+    private static func kittyConfig(palette: TerminalPalette, wallpaperURL: URL, mode: String) -> String {
+        let lines = header(wallpaperURL, mode: mode) + [
             "foreground \(palette.foreground.hex)",
             "background \(palette.background.hex)",
             "cursor \(palette.cursor.hex)",
@@ -42,13 +51,21 @@ enum ThemeManager {
             "selection_foreground \(palette.selectionForeground.hex)",
             "selection_background \(palette.selectionBackground.hex)"
         ] + ansiLines(prefix: "color", palette: palette)
-        try write(lines.joined(separator: "\n") + "\n", to: url)
-        return [url]
+        return lines.joined(separator: "\n") + "\n"
     }
 
-    private static func writeAlacritty(_ palette: TerminalPalette, _ wallpaperURL: URL) throws -> [URL] {
-        let url = home(".config/alacritty/themes/mwall.toml")
-        var lines = header(wallpaperURL)
+    private static func writeAlacritty(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
+        let dark = home(".config/alacritty/themes/mwall-dark.toml")
+        let light = home(".config/alacritty/themes/mwall-light.toml")
+        let current = home(".config/alacritty/themes/mwall.toml")
+        try write(alacrittyConfig(palette: palettes.dark, wallpaperURL: wallpaperURL, mode: "dark"), to: dark)
+        try write(alacrittyConfig(palette: palettes.light, wallpaperURL: wallpaperURL, mode: "light"), to: light)
+        try write(alacrittyConfig(palette: palettes.current, wallpaperURL: wallpaperURL, mode: "current"), to: current)
+        return [dark, light, current]
+    }
+
+    private static func alacrittyConfig(palette: TerminalPalette, wallpaperURL: URL, mode: String) -> String {
+        var lines = header(wallpaperURL, mode: mode)
         lines += [
             "[colors.primary]",
             "background = '\(palette.background.hex)'",
@@ -67,13 +84,21 @@ enum ThemeManager {
         lines += namedAnsi(palette.normal).map { "\($0.key) = '\($0.value.hex)'" }
         lines += ["", "[colors.bright]"]
         lines += namedAnsi(palette.bright).map { "\($0.key) = '\($0.value.hex)'" }
-        try write(lines.joined(separator: "\n") + "\n", to: url)
-        return [url]
+        return lines.joined(separator: "\n") + "\n"
     }
 
-    private static func writeWezTerm(_ palette: TerminalPalette, _ wallpaperURL: URL) throws -> [URL] {
-        let url = home(".config/wezterm/colors/mwall.toml")
-        let lines = header(wallpaperURL) + [
+    private static func writeWezTerm(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
+        let dark = home(".config/wezterm/colors/mwall-dark.toml")
+        let light = home(".config/wezterm/colors/mwall-light.toml")
+        let current = home(".config/wezterm/colors/mwall.toml")
+        try write(wezTermConfig(palette: palettes.dark, wallpaperURL: wallpaperURL, mode: "dark"), to: dark)
+        try write(wezTermConfig(palette: palettes.light, wallpaperURL: wallpaperURL, mode: "light"), to: light)
+        try write(wezTermConfig(palette: palettes.current, wallpaperURL: wallpaperURL, mode: "current"), to: current)
+        return [dark, light, current]
+    }
+
+    private static func wezTermConfig(palette: TerminalPalette, wallpaperURL: URL, mode: String) -> String {
+        let lines = header(wallpaperURL, mode: mode) + [
             "[colors]",
             "foreground = '\(palette.foreground.hex)'",
             "background = '\(palette.background.hex)'",
@@ -84,13 +109,21 @@ enum ThemeManager {
             "ansi = \(tomlArray(palette.normal))",
             "brights = \(tomlArray(palette.bright))"
         ]
-        try write(lines.joined(separator: "\n") + "\n", to: url)
-        return [url]
+        return lines.joined(separator: "\n") + "\n"
     }
 
-    private static func writeGhostty(_ palette: TerminalPalette, _ wallpaperURL: URL) throws -> [URL] {
-        let url = home(".config/ghostty/themes/mwall")
-        var lines = header(wallpaperURL)
+    private static func writeGhostty(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
+        let dark = home(".config/ghostty/themes/mwall-dark")
+        let light = home(".config/ghostty/themes/mwall-light")
+        let current = home(".config/ghostty/themes/mwall")
+        try write(ghosttyConfig(palette: palettes.dark, wallpaperURL: wallpaperURL, mode: "dark"), to: dark)
+        try write(ghosttyConfig(palette: palettes.light, wallpaperURL: wallpaperURL, mode: "light"), to: light)
+        try write(ghosttyConfig(palette: palettes.current, wallpaperURL: wallpaperURL, mode: "current"), to: current)
+        return [dark, light, current]
+    }
+
+    private static func ghosttyConfig(palette: TerminalPalette, wallpaperURL: URL, mode: String) -> String {
+        var lines = header(wallpaperURL, mode: mode)
         lines += [
             "background = \(palette.background.hex)",
             "foreground = \(palette.foreground.hex)",
@@ -102,12 +135,20 @@ enum ThemeManager {
         for (index, color) in (palette.normal + palette.bright).enumerated() {
             lines.append("palette = \(index)=\(color.hex)")
         }
-        try write(lines.joined(separator: "\n") + "\n", to: url)
-        return [url]
+        return lines.joined(separator: "\n") + "\n"
     }
 
-    private static func writeIterm2(_ palette: TerminalPalette, _ wallpaperURL: URL) throws -> [URL] {
-        let url = StorePaths.appSupport.appendingPathComponent("MWall.itermcolors")
+    private static func writeIterm2(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
+        let dark = StorePaths.appSupport.appendingPathComponent("MWall Dark.itermcolors")
+        let light = StorePaths.appSupport.appendingPathComponent("MWall Light.itermcolors")
+        let current = StorePaths.appSupport.appendingPathComponent("MWall.itermcolors")
+        try write(itermColors(palette: palettes.dark), to: dark)
+        try write(itermColors(palette: palettes.light), to: light)
+        try write(itermColors(palette: palettes.current), to: current)
+        return [dark, light, current]
+    }
+
+    private static func itermColors(palette: TerminalPalette) -> String {
         let colors = [
             ("Background Color", palette.background),
             ("Foreground Color", palette.foreground),
@@ -132,14 +173,23 @@ enum ThemeManager {
         </dict>
         </plist>
         """
-        try write(plist, to: url)
-        return [url]
+        return plist
     }
 
-    private static func writeTerminalScript(_ palette: TerminalPalette, _ wallpaperURL: URL) throws -> [URL] {
-        let url = StorePaths.appSupport.appendingPathComponent("Apply-MWall-Terminal.applescript")
-        let script = """
+    private static func writeTerminalScript(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
+        let dark = StorePaths.appSupport.appendingPathComponent("Apply-MWall-Terminal-Dark.applescript")
+        let light = StorePaths.appSupport.appendingPathComponent("Apply-MWall-Terminal-Light.applescript")
+        let current = StorePaths.appSupport.appendingPathComponent("Apply-MWall-Terminal.applescript")
+        try write(terminalScript(palette: palettes.dark, wallpaperURL: wallpaperURL, mode: "dark"), to: dark)
+        try write(terminalScript(palette: palettes.light, wallpaperURL: wallpaperURL, mode: "light"), to: light)
+        try write(terminalScript(palette: palettes.current, wallpaperURL: wallpaperURL, mode: "current"), to: current)
+        return [dark, light, current]
+    }
+
+    private static func terminalScript(palette: TerminalPalette, wallpaperURL: URL, mode: String) -> String {
+        """
         -- Generated by MWall from \(wallpaperURL.path)
+        -- Mode: \(mode)
         -- Run this script manually if you want to update the front Terminal.app tab.
         tell application "Terminal"
             if not (exists window 1) then reopen
@@ -148,8 +198,6 @@ enum ThemeManager {
             set cursor color of selected tab of front window to {\(appleRGB(palette.cursor))}
         end tell
         """
-        try write(script, to: url)
-        return [url]
     }
 
     private static func write(_ text: String, to url: URL) throws {
@@ -161,17 +209,18 @@ enum ThemeManager {
         URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(relativePath)
     }
 
-    private static func header(_ wallpaperURL: URL) -> [String] {
+    private static func header(_ wallpaperURL: URL, mode: String) -> [String] {
         [
             "# Generated by MWall",
             "# Wallpaper: \(wallpaperURL.path)",
+            "# Mode: \(mode)",
             "# Include/import this file from your terminal config if it is not loaded automatically.",
             ""
         ]
     }
 
     private static func ansiLines(prefix: String, palette: TerminalPalette) -> [String] {
-        (palette.normal + palette.bright).enumerated().map { "\(prefix)\($0.offset) \($0.element.hex)" }
+        (palette.normal + palette.bright).enumerated().map { "\(prefix)\($0.offset) \(paletteHex($0.element))" }
     }
 
     private static func namedAnsi(_ colors: [RGBColor]) -> [(key: String, value: RGBColor)] {
@@ -180,6 +229,10 @@ enum ThemeManager {
 
     private static func tomlArray(_ colors: [RGBColor]) -> String {
         "[" + colors.map { "'\($0.hex)'" }.joined(separator: ", ") + "]"
+    }
+
+    private static func paletteHex(_ color: RGBColor) -> String {
+        color.hex
     }
 
     private static func colorDict(name: String, color: RGBColor) -> String {

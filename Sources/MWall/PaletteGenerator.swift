@@ -110,12 +110,24 @@ struct TerminalPalette: Codable, Equatable {
     var bright: [RGBColor]
 }
 
+struct TerminalPalettePair: Codable, Equatable {
+    var dark: TerminalPalette
+    var light: TerminalPalette
+
+    var current: TerminalPalette {
+        systemPrefersDarkAppearance() ? dark : light
+    }
+}
+
 enum PaletteGenerator {
-    static func generate(from imageURL: URL) throws -> TerminalPalette {
+    static func generate(from imageURL: URL) throws -> TerminalPalettePair {
         let pixels = try sampledPixels(from: imageURL, size: 72)
         let clusters = kMeans(pixels: pixels, k: 8, iterations: 10)
         let source = pickSourceColor(from: clusters)
-        return makeTerminalPalette(source: source)
+        return TerminalPalettePair(
+            dark: makeTerminalPalette(source: source, mode: .dark),
+            light: makeTerminalPalette(source: source, mode: .light)
+        )
     }
 
     private static func sampledPixels(from imageURL: URL, size: Int) throws -> [RGBColor] {
@@ -237,31 +249,62 @@ enum PaletteGenerator {
         return pow(Double(cluster.count), 0.38) * (0.35 + hsl.s) * max(0.15, 1.0 - tonePenalty)
     }
 
-    private static func makeTerminalPalette(source: RGBColor) -> TerminalPalette {
+    private enum PaletteMode {
+        case dark
+        case light
+    }
+
+    private static func makeTerminalPalette(source: RGBColor, mode: PaletteMode) -> TerminalPalette {
         let hsl = source.hsl
         let baseSaturation = max(0.34, min(0.72, hsl.s))
-        let background = hsl.with(saturation: baseSaturation * 0.36, lightness: 0.095).rgb
-        let foreground = hsl.with(saturation: baseSaturation * 0.24, lightness: 0.88).rgb
-        let accent = hsl.with(saturation: max(0.50, baseSaturation), lightness: 0.62).rgb
-        let selection = accent.blended(with: background, amount: 0.32)
 
-        let black = hsl.with(saturation: baseSaturation * 0.18, lightness: 0.13).rgb
-        let white = hsl.with(saturation: baseSaturation * 0.18, lightness: 0.78).rgb
+        let background: RGBColor
+        let foreground: RGBColor
+        let accent: RGBColor
+        let selection: RGBColor
+        let black: RGBColor
+        let white: RGBColor
+        let brightBlack: RGBColor
+        let brightWhite: RGBColor
+
+        switch mode {
+        case .dark:
+            background = hsl.with(saturation: baseSaturation * 0.36, lightness: 0.095).rgb
+            foreground = hsl.with(saturation: baseSaturation * 0.24, lightness: 0.88).rgb
+            accent = hsl.with(saturation: max(0.50, baseSaturation), lightness: 0.62).rgb
+            selection = accent.blended(with: background, amount: 0.32)
+            black = hsl.with(saturation: baseSaturation * 0.18, lightness: 0.13).rgb
+            white = hsl.with(saturation: baseSaturation * 0.18, lightness: 0.78).rgb
+            brightBlack = hsl.with(saturation: baseSaturation * 0.20, lightness: 0.28).rgb
+            brightWhite = RGBColor(r: 246, g: 248, b: 255)
+        case .light:
+            background = hsl.with(saturation: baseSaturation * 0.16, lightness: 0.955).rgb
+            foreground = hsl.with(saturation: baseSaturation * 0.28, lightness: 0.145).rgb
+            accent = hsl.with(saturation: max(0.48, baseSaturation), lightness: 0.42).rgb
+            selection = accent.blended(with: background, amount: 0.70)
+            black = hsl.with(saturation: baseSaturation * 0.18, lightness: 0.24).rgb
+            white = hsl.with(saturation: baseSaturation * 0.12, lightness: 0.86).rgb
+            brightBlack = hsl.with(saturation: baseSaturation * 0.18, lightness: 0.38).rgb
+            brightWhite = RGBColor(r: 255, g: 255, b: 255)
+        }
+
+        let toneOffset = mode == .dark ? 0.0 : -0.12
         let normal = [
             black,
-            color(hue: 4, saturation: 0.64, lightness: 0.56, tint: hsl.h),
-            color(hue: 138, saturation: 0.50, lightness: 0.50, tint: hsl.h),
-            color(hue: 42, saturation: 0.70, lightness: 0.57, tint: hsl.h),
-            color(hue: 218, saturation: 0.62, lightness: 0.62, tint: hsl.h),
-            color(hue: 292, saturation: 0.54, lightness: 0.62, tint: hsl.h),
-            color(hue: 184, saturation: 0.54, lightness: 0.55, tint: hsl.h),
+            color(hue: 4, saturation: 0.64, lightness: 0.56 + toneOffset, tint: hsl.h),
+            color(hue: 138, saturation: 0.50, lightness: 0.50 + toneOffset, tint: hsl.h),
+            color(hue: 42, saturation: 0.70, lightness: 0.57 + toneOffset, tint: hsl.h),
+            color(hue: 218, saturation: 0.62, lightness: 0.62 + toneOffset, tint: hsl.h),
+            color(hue: 292, saturation: 0.54, lightness: 0.62 + toneOffset, tint: hsl.h),
+            color(hue: 184, saturation: 0.54, lightness: 0.55 + toneOffset, tint: hsl.h),
             white
         ]
         let bright = normal.enumerated().map { index, value in
-            if index == 0 { return hsl.with(saturation: baseSaturation * 0.20, lightness: 0.28).rgb }
-            if index == 7 { return RGBColor(r: 246, g: 248, b: 255) }
+            if index == 0 { return brightBlack }
+            if index == 7 { return brightWhite }
             let c = value.hsl
-            return c.with(saturation: min(0.86, c.s + 0.10), lightness: min(0.72, c.l + 0.10)).rgb
+            let nextLightness = mode == .dark ? min(0.72, c.l + 0.10) : min(0.64, c.l + 0.10)
+            return c.with(saturation: min(0.86, c.s + 0.10), lightness: nextLightness).rgb
         }
 
         return TerminalPalette(
@@ -280,8 +323,19 @@ enum PaletteGenerator {
     private static func color(hue: Double, saturation: Double, lightness: Double, tint: Double) -> RGBColor {
         let shortest = ((tint - hue + 540.0).truncatingRemainder(dividingBy: 360.0)) - 180.0
         let harmonized = hue + shortest * 0.10
-        return HSLColor(h: harmonized < 0 ? harmonized + 360.0 : harmonized, s: saturation, l: lightness).rgb
+        return HSLColor(
+            h: harmonized < 0 ? harmonized + 360.0 : harmonized,
+            s: saturation,
+            l: min(max(lightness, 0.0), 1.0)
+        ).rgb
     }
+}
+
+private func systemPrefersDarkAppearance() -> Bool {
+    if let style = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") {
+        return style.caseInsensitiveCompare("Dark") == .orderedSame
+    }
+    return false
 }
 
 private extension Comparable {
