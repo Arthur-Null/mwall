@@ -10,6 +10,8 @@ swift run mwall
 
 The app runs as a menu bar utility and hides its Dock icon.
 
+When "all desktops" is enabled, MWall uses System Events to update every macOS desktop/Space. macOS may ask you to allow MWall to control System Events the first time this runs.
+
 ## Build an App Bundle
 
 ```sh
@@ -32,7 +34,7 @@ MWALL_SANDBOX=1 tools/package_app.sh
 - Local wallpaper folders.
 - Security-scoped bookmarks for user-selected folders, ready for sandboxed builds.
 - Unsplash random landscape download with query, cache, and cache cleanup.
-- Apply to current screen or all screens.
+- Apply to the current desktop or all macOS desktops/Spaces.
 - Favorites and recent wallpaper history.
 - Dark and light palette extraction from the applied wallpaper.
 - Terminal theme output for Kitty, Alacritty, WezTerm, Ghostty, iTerm2, and Terminal.app helper script.

@@ -90,7 +90,7 @@ struct ContentView: View {
     private var controls: some View {
         VStack(spacing: 10) {
             HStack {
-                Toggle("所有屏幕", isOn: Binding(
+                Toggle("所有桌面", isOn: Binding(
                     get: { store.settings.applyToAllScreens },
                     set: { store.settings.applyToAllScreens = $0 }
                 ))

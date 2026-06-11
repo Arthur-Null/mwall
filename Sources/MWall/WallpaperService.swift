@@ -6,7 +6,16 @@ enum WallpaperService {
     static let supportedExtensions: Set<String> = ["jpg", "jpeg", "png", "heic", "tiff", "tif", "webp"]
 
     static func setDesktopImage(_ url: URL, allScreens: Bool) throws {
-        let screens = allScreens ? NSScreen.screens : [NSScreen.main].compactMap { $0 }
+        if allScreens {
+            try setEveryDesktopImage(url)
+            try? setScreenImages(url, screens: NSScreen.screens)
+            return
+        }
+
+        try setScreenImages(url, screens: [NSScreen.main].compactMap { $0 })
+    }
+
+    private static func setScreenImages(_ url: URL, screens: [NSScreen]) throws {
         let options: [NSWorkspace.DesktopImageOptionKey: Any] = [
             .imageScaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue,
             .allowClipping: true
@@ -14,6 +23,46 @@ enum WallpaperService {
         for screen in screens {
             try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: options)
         }
+    }
+
+    private static func setEveryDesktopImage(_ url: URL) throws {
+        let script = """
+        tell application "System Events"
+            repeat with currentDesktop in desktops
+                set picture of currentDesktop to \(appleScriptString(url.path))
+            end repeat
+        end tell
+        """
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", script]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw NSError(
+                domain: "MWall.Wallpaper",
+                code: Int(process.terminationStatus),
+                userInfo: [
+                    NSLocalizedDescriptionKey: output?.isEmpty == false
+                        ? output!
+                        : "无法设置所有桌面壁纸，请确认已允许 MWall 控制 System Events。"
+                ]
+            )
+        }
+    }
+
+    private static func appleScriptString(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 
     static func imageFiles(in folder: URL) -> [URL] {
