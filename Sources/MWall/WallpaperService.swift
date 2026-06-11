@@ -8,7 +8,7 @@ enum WallpaperService {
     static func setDesktopImage(_ url: URL, allScreens: Bool) throws {
         if allScreens {
             try setEveryDesktopImage(url)
-            try? setScreenImages(url, screens: NSScreen.screens)
+            try setScreenImages(url, screens: NSScreen.screens)
             return
         }
 
@@ -26,6 +26,11 @@ enum WallpaperService {
     }
 
     private static func setEveryDesktopImage(_ url: URL) throws {
+        if FileManager.default.fileExists(atPath: WallpaperStore.systemIndexURL.path) {
+            _ = try WallpaperStore.updateSystemIndex(imageURL: url)
+            return
+        }
+
         let script = """
         tell application "System Events"
             repeat with currentDesktop in desktops
@@ -41,7 +46,18 @@ enum WallpaperService {
         process.standardOutput = pipe
         process.standardError = pipe
         try process.run()
-        process.waitUntilExit()
+        let deadline = Date().addingTimeInterval(8)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        if process.isRunning {
+            process.terminate()
+            throw NSError(
+                domain: "MWall.Wallpaper",
+                code: 124,
+                userInfo: [NSLocalizedDescriptionKey: "设置所有桌面壁纸超时，请确认已允许 MWall 控制 System Events。"]
+            )
+        }
 
         guard process.terminationStatus == 0 else {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()

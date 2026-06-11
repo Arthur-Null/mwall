@@ -10,7 +10,7 @@ swift run mwall
 
 The app runs as a menu bar utility and hides its Dock icon.
 
-When "all desktops" is enabled, MWall uses System Events to update every macOS desktop/Space. macOS may ask you to allow MWall to control System Events the first time this runs.
+When "all desktops" is enabled, MWall updates the macOS wallpaper store so hidden Spaces pick up the same image, then refreshes visible displays through `NSWorkspace`. Older macOS versions may fall back to System Events and ask for automation permission.
 
 ## Build an App Bundle
 

@@ -31,3 +31,7 @@ _Avoid_: 原图预下载, 低清桌面图
 **Unsplash 完整壁纸**:
 双层缓存中真正用于设置桌面和生成主题的图片，尺寸为 3840x2160，质量参数 q=90。只有用户应用某张 Unsplash 壁纸时才下载，并在此时调用 Unsplash 的 download tracking URL。
 _Avoid_: 预览图应用到桌面, 浏览时触发下载统计
+
+**所有桌面**:
+把同一张壁纸应用到当前显示器和 Mission Control 中的隐藏 Space。现代 macOS 的持久状态在 `~/Library/Application Support/com.apple.wallpaper/Store/Index.plist`，不能只依赖 `System Events desktops`，后者只适合作为旧系统 fallback。
+_Avoid_: 当前桌面, 当前显示器, 只刷新 NSWorkspace screen

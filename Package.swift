@@ -14,6 +14,11 @@ let package = Package(
         .executableTarget(
             name: "MWall",
             path: "Sources/MWall"
+        ),
+        .testTarget(
+            name: "MWallTests",
+            dependencies: ["MWall"],
+            path: "Tests/MWallTests"
         )
     ]
 )
