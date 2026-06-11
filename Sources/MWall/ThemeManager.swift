@@ -92,14 +92,15 @@ enum ThemeManager {
         let url = home(".config/ghostty/themes/mwall")
         var lines = header(wallpaperURL)
         lines += [
-            "background = \(palette.background.hex.dropFirst())",
-            "foreground = \(palette.foreground.hex.dropFirst())",
-            "cursor-color = \(palette.cursor.hex.dropFirst())",
-            "selection-background = \(palette.selectionBackground.hex.dropFirst())",
-            "selection-foreground = \(palette.selectionForeground.hex.dropFirst())"
+            "background = \(palette.background.hex)",
+            "foreground = \(palette.foreground.hex)",
+            "cursor-color = \(palette.cursor.hex)",
+            "cursor-text = \(palette.cursorText.hex)",
+            "selection-background = \(palette.selectionBackground.hex)",
+            "selection-foreground = \(palette.selectionForeground.hex)"
         ]
         for (index, color) in (palette.normal + palette.bright).enumerated() {
-            lines.append("palette = \(index)=\(color.hex.dropFirst())")
+            lines.append("palette = \(index)=\(color.hex)")
         }
         try write(lines.joined(separator: "\n") + "\n", to: url)
         return [url]
