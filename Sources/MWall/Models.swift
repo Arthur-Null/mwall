@@ -26,13 +26,28 @@ struct WallpaperItem: Identifiable, Codable, Hashable {
     var title: String
     var kind: WallpaperKind
     var source: String?
+    var fullResolutionURL: URL?
+    var downloadLocation: URL?
+    var fullLocalURL: URL?
 
-    init(url: URL, title: String? = nil, kind: WallpaperKind, source: String? = nil) {
-        self.id = url.standardizedFileURL.path
+    init(
+        id: String? = nil,
+        url: URL,
+        title: String? = nil,
+        kind: WallpaperKind,
+        source: String? = nil,
+        fullResolutionURL: URL? = nil,
+        downloadLocation: URL? = nil,
+        fullLocalURL: URL? = nil
+    ) {
+        self.id = id ?? url.standardizedFileURL.path
         self.url = url
         self.title = title ?? url.deletingPathExtension().lastPathComponent
         self.kind = kind
         self.source = source
+        self.fullResolutionURL = fullResolutionURL
+        self.downloadLocation = downloadLocation
+        self.fullLocalURL = fullLocalURL
     }
 }
 
@@ -50,7 +65,6 @@ struct AppSettings: Codable, Equatable {
     var enabledThemeTargets: Set<ThemeTarget> = Set(ThemeTarget.defaultEnabled)
     var currentSource: WallpaperKind = .builtIn
     var unsplashAccessKey = ""
-    var unsplashQuery = "nature landscape"
     var unsplashCacheLimitMB = 600
 }
 
@@ -109,6 +123,18 @@ enum StorePaths {
 
     static var unsplash: URL {
         cache.appendingPathComponent("Unsplash", isDirectory: true)
+    }
+
+    static var unsplashPreviews: URL {
+        unsplash.appendingPathComponent("Previews", isDirectory: true)
+    }
+
+    static var unsplashFull: URL {
+        unsplash.appendingPathComponent("Full", isDirectory: true)
+    }
+
+    static var unsplashMetadata: URL {
+        unsplash.appendingPathComponent("metadata.json")
     }
 
     static var settings: URL {

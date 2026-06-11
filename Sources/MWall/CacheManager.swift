@@ -43,13 +43,35 @@ enum CacheManager {
             includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
             options: [.skipsHiddenFiles]
         )
-        return urls.compactMap { url in
+        return urls.reduce(into: []) { result, url in
             guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]),
                   values.isRegularFile == true
             else {
-                return nil
+                result.append(contentsOf: (try? cacheFiles(in: url)) ?? [])
+                return
             }
-            return CacheFile(url: url, size: values.fileSize ?? 0, modified: values.contentModificationDate ?? .distantPast)
+            guard url.lastPathComponent != StorePaths.unsplashMetadata.lastPathComponent else {
+                return
+            }
+            result.append(CacheFile(url: url, size: values.fileSize ?? 0, modified: values.contentModificationDate ?? .distantPast))
+        }
+    }
+
+    private static func cacheFiles(in directory: URL) throws -> [CacheFile] {
+        let fm = FileManager.default
+        let urls = try fm.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+        return urls.reduce(into: []) { result, url in
+            guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]),
+                  values.isRegularFile == true
+            else {
+                result.append(contentsOf: (try? cacheFiles(in: url)) ?? [])
+                return
+            }
+            result.append(CacheFile(url: url, size: values.fileSize ?? 0, modified: values.contentModificationDate ?? .distantPast))
         }
     }
 }

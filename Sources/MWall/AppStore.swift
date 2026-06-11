@@ -5,6 +5,7 @@ import Foundation
 final class AppStore: ObservableObject {
     @Published private(set) var builtInWallpapers: [WallpaperItem] = []
     @Published private(set) var localWallpapers: [WallpaperItem] = []
+    @Published private(set) var unsplashWallpapers: [WallpaperItem] = []
     @Published private(set) var history: [HistoryEntry] = []
     @Published private(set) var favorites: [WallpaperItem] = []
     @Published var settings = AppSettings() {
@@ -38,9 +39,7 @@ final class AppStore: ObservableObject {
         case .local:
             localWallpapers
         case .unsplash:
-            WallpaperService.imageFiles(in: StorePaths.unsplash).map {
-                WallpaperItem(url: $0, kind: .unsplash, source: "Unsplash")
-            }
+            unsplashWallpapers
         case .favorite:
             favorites
         case .history:
@@ -48,7 +47,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func refreshLibrary() {
+    func refreshLibrary(updateMessage: Bool = true) {
         builtInWallpapers = WallpaperService.imageFiles(in: StorePaths.builtIns).map {
             WallpaperItem(url: $0, kind: .builtIn, source: "MWall")
         }
@@ -59,7 +58,10 @@ final class AppStore: ObservableObject {
                 }
             }
         }
-        lastMessage = "已扫描 \(builtInWallpapers.count + localWallpapers.count) 张壁纸"
+        unsplashWallpapers = UnsplashService.localItems()
+        if updateMessage {
+            lastMessage = "已扫描 \(builtInWallpapers.count + localWallpapers.count) 张壁纸"
+        }
     }
 
     func chooseLocalFolder() {
@@ -90,6 +92,9 @@ final class AppStore: ObservableObject {
 
     func setSource(_ source: WallpaperKind) {
         settings.currentSource = source
+        if source == .unsplash {
+            ensureUnsplashPool()
+        }
     }
 
     func toggleFavorite(_ item: WallpaperItem) {
@@ -116,9 +121,17 @@ final class AppStore: ObservableObject {
     }
 
     func applyWallpaper(_ item: WallpaperItem) {
+        if item.fullResolutionURL != nil {
+            applyUnsplashWallpaper(item)
+            return
+        }
+        applyResolvedWallpaper(item, wallpaperURL: item.url)
+    }
+
+    private func applyResolvedWallpaper(_ item: WallpaperItem, wallpaperURL: URL) {
         do {
-            try SecurityScopedBookmarks.withAccess(for: item.url, folders: localFolders) {
-                try WallpaperService.setDesktopImage(item.url, allScreens: settings.applyToAllScreens)
+            try SecurityScopedBookmarks.withAccess(for: wallpaperURL, folders: localFolders) {
+                try WallpaperService.setDesktopImage(wallpaperURL, allScreens: settings.applyToAllScreens)
                 selectedWallpaperID = item.id
                 addHistory(item)
                 lastMessage = "已应用：\(item.title)"
@@ -126,10 +139,10 @@ final class AppStore: ObservableObject {
                 guard settings.applyThemeAfterWallpaperChange else {
                     return
                 }
-                let palettes = try PaletteGenerator.generate(from: item.url)
+                let palettes = try PaletteGenerator.generate(from: wallpaperURL)
                 let report = try ThemeManager.apply(
                     palettes: palettes,
-                    wallpaperURL: item.url,
+                    wallpaperURL: wallpaperURL,
                     targets: settings.enabledThemeTargets,
                     reloadTerminals: settings.reloadTerminalsAfterThemeChange
                 )
@@ -138,6 +151,31 @@ final class AppStore: ObservableObject {
         } catch {
             lastMessage = "失败：\(error.localizedDescription)"
             NSAlert(error: error).runModal()
+        }
+    }
+
+    private func applyUnsplashWallpaper(_ item: WallpaperItem) {
+        isWorking = true
+        lastMessage = "正在准备 Unsplash 原图..."
+        Task {
+            do {
+                let (fullURL, updatedItem) = try await UnsplashService.fullWallpaperURL(
+                    for: item,
+                    accessKey: settings.unsplashAccessKey
+                )
+                await MainActor.run {
+                    isWorking = false
+                    upsertUnsplashWallpaper(updatedItem)
+                    applyResolvedWallpaper(updatedItem, wallpaperURL: fullURL)
+                    cleanupCacheSilently()
+                }
+            } catch {
+                await MainActor.run {
+                    isWorking = false
+                    lastMessage = "Unsplash 原图失败：\(error.localizedDescription)"
+                    NSAlert(error: error).runModal()
+                }
+            }
         }
     }
 
@@ -167,11 +205,12 @@ final class AppStore: ObservableObject {
             return
         }
         do {
-            try SecurityScopedBookmarks.withAccess(for: item.url, folders: localFolders) {
-                let palettes = try PaletteGenerator.generate(from: item.url)
+            let wallpaperURL = item.fullLocalURL ?? item.url
+            try SecurityScopedBookmarks.withAccess(for: wallpaperURL, folders: localFolders) {
+                let palettes = try PaletteGenerator.generate(from: wallpaperURL)
                 let report = try ThemeManager.apply(
                     palettes: palettes,
-                    wallpaperURL: item.url,
+                    wallpaperURL: wallpaperURL,
                     targets: settings.enabledThemeTargets,
                     reloadTerminals: settings.reloadTerminalsAfterThemeChange
                 )
@@ -187,29 +226,34 @@ final class AppStore: ObservableObject {
         do {
             let removed = try CacheManager.cleanupUnsplashCache(limitMB: settings.unsplashCacheLimitMB)
             lastMessage = removed == 0 ? "缓存无需清理" : "已清理 \(removed) 个缓存文件"
-            refreshLibrary()
+            refreshLibrary(updateMessage: false)
         } catch {
             lastMessage = "缓存清理失败：\(error.localizedDescription)"
             NSAlert(error: error).runModal()
         }
     }
 
-    func fetchUnsplashWallpaper() {
+    func ensureUnsplashPool() {
+        unsplashWallpapers = UnsplashService.localItems()
+        guard unsplashWallpapers.count < UnsplashService.preferredPoolSize else {
+            lastMessage = "已加载 \(unsplashWallpapers.count) 张 Unsplash 精选"
+            return
+        }
+        refreshUnsplashBatch()
+    }
+
+    func refreshUnsplashBatch() {
         isWorking = true
-        lastMessage = "正在从 Unsplash 获取壁纸..."
+        lastMessage = "正在从 Unsplash 换一批精选..."
         Task {
             do {
-                let result = try await UnsplashService.downloadRandom(
-                    accessKey: settings.unsplashAccessKey,
-                    query: settings.unsplashQuery
-                )
+                let newItems = try await UnsplashService.fetchWallpaperBatch(accessKey: settings.unsplashAccessKey)
                 await MainActor.run {
                     isWorking = false
                     settings.currentSource = .unsplash
-                    lastMessage = "已下载 Unsplash 壁纸：\(result.author)"
-                    refreshLibrary()
-                    applyWallpaper(result.item)
-                    cleanupCache()
+                    mergeUnsplashWallpapers(newItems)
+                    lastMessage = "已加入 \(newItems.count) 张 Unsplash 精选"
+                    cleanupCacheSilently()
                 }
             } catch {
                 await MainActor.run {
@@ -234,10 +278,35 @@ final class AppStore: ObservableObject {
 
     private func currentWallpaperCandidate() -> WallpaperItem? {
         if let selectedWallpaperID,
-           let selected = (builtInWallpapers + localWallpapers + favorites).first(where: { $0.id == selectedWallpaperID }) {
+           let selected = (builtInWallpapers + localWallpapers + unsplashWallpapers + favorites).first(where: { $0.id == selectedWallpaperID }) {
             return selected
         }
         return history.first?.item ?? visibleWallpapers.first ?? builtInWallpapers.first
+    }
+
+    private func mergeUnsplashWallpapers(_ newItems: [WallpaperItem]) {
+        var merged = newItems + unsplashWallpapers
+        var seen = Set<String>()
+        merged.removeAll { item in
+            !seen.insert(item.id).inserted
+        }
+        unsplashWallpapers = merged.filter { FileManager.default.fileExists(atPath: $0.url.path) }
+        UnsplashService.saveCachedItems(unsplashWallpapers)
+    }
+
+    private func upsertUnsplashWallpaper(_ item: WallpaperItem) {
+        if let index = unsplashWallpapers.firstIndex(where: { $0.id == item.id }) {
+            unsplashWallpapers[index] = item
+        } else {
+            unsplashWallpapers.insert(item, at: 0)
+        }
+        UnsplashService.saveCachedItems(unsplashWallpapers)
+    }
+
+    private func cleanupCacheSilently() {
+        _ = try? CacheManager.cleanupUnsplashCache(limitMB: settings.unsplashCacheLimitMB)
+        unsplashWallpapers = UnsplashService.localItems()
+        UnsplashService.saveCachedItems(unsplashWallpapers)
     }
 
     private func addHistory(_ item: WallpaperItem) {

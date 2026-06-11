@@ -33,7 +33,7 @@ MWALL_SANDBOX=1 tools/package_app.sh
 - Built-in fallback wallpapers generated on first launch.
 - Local wallpaper folders.
 - Security-scoped bookmarks for user-selected folders, ready for sandboxed builds.
-- Unsplash random landscape download with query, cache, and cache cleanup.
+- Unsplash featured wallpaper pool with preview/full-resolution two-layer cache.
 - Apply to the current desktop or all macOS desktops/Spaces.
 - Favorites and recent wallpaper history.
 - Dark and light palette extraction from the applied wallpaper.
@@ -43,7 +43,13 @@ MWALL_SANDBOX=1 tools/package_app.sh
 
 ## Unsplash
 
-MWall uses the official Unsplash JSON API. Add your Unsplash Access Key in the popover before fetching. Demo apps are rate-limited by Unsplash, so cached downloads are kept under `~/Library/Caches/MWall/Unsplash`.
+MWall uses the official Unsplash JSON API. Add your Unsplash Access Key in the popover, then switch to the Unsplash source or click "换一批" to fill the featured wallpaper pool.
+
+Unsplash API JSON requests are rate-limited by Unsplash, while image file requests from `images.unsplash.com` are not counted as API requests. MWall therefore keeps a local two-layer cache under `~/Library/Caches/MWall/Unsplash`:
+
+- `Previews/`: 600x338 preview images used by the wallpaper grid.
+- `Full/`: 3840x2160 images downloaded only when a wallpaper is applied.
+- `metadata.json`: cached Unsplash photo metadata and local file paths.
 
 ## Generated Theme Files
 

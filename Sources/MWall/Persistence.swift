@@ -3,7 +3,14 @@ import Foundation
 enum Persistence {
     static func prepareDirectories() {
         let fm = FileManager.default
-        [StorePaths.appSupport, StorePaths.cache, StorePaths.builtIns, StorePaths.unsplash].forEach { url in
+        [
+            StorePaths.appSupport,
+            StorePaths.cache,
+            StorePaths.builtIns,
+            StorePaths.unsplash,
+            StorePaths.unsplashPreviews,
+            StorePaths.unsplashFull
+        ].forEach { url in
             try? fm.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }

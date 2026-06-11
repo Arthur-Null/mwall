@@ -140,16 +140,10 @@ struct ContentView: View {
                             Image(systemName: "doc.on.clipboard")
                         }
                         .help("从剪贴板粘贴 Access Key")
-                        TextField("关键词", text: Binding(
-                            get: { store.settings.unsplashQuery },
-                            set: { store.settings.unsplashQuery = $0 }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 130)
                         Button {
-                            store.fetchUnsplashWallpaper()
+                            store.refreshUnsplashBatch()
                         } label: {
-                            Label(store.isWorking ? "获取中" : "获取并应用", systemImage: "cloud.down")
+                            Label(store.isWorking ? "获取中" : "换一批", systemImage: "arrow.triangle.2.circlepath")
                         }
                         .disabled(store.isWorking)
                     }
