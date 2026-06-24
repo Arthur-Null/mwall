@@ -6,6 +6,11 @@ struct ThemeApplyReport {
 }
 
 enum ThemeManager {
+    private static let starshipThemeStart = "# MWall managed Starship theme: begin"
+    private static let starshipThemeEnd = "# MWall managed Starship theme: end"
+    private static let starshipPaletteStart = "# MWall managed Starship palette: begin"
+    private static let starshipPaletteEnd = "# MWall managed Starship palette: end"
+
     static func apply(
         palettes: TerminalPalettePair,
         wallpaperURL: URL,
@@ -26,6 +31,7 @@ enum ThemeManager {
         case .kitty: writeKitty
         case .ghostty: writeGhostty
         case .neovim: writeNeovim
+        case .starship: writeStarship
         case .alacritty, .wezterm, .iterm2, .terminal:
             { _, _ in [] }
         }
@@ -337,6 +343,105 @@ enum ThemeManager {
         return lines.joined(separator: "\n") + "\n"
     }
 
+    private static func writeStarship(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
+        let configURL = home(".config/starship.toml")
+        let current = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+        let updated = starshipConfig(
+            existingConfig: current,
+            palette: palettes.current,
+            wallpaperURL: wallpaperURL,
+            mode: "current"
+        )
+        try write(updated, to: configURL)
+        return [configURL]
+    }
+
+    private static func starshipConfig(
+        existingConfig: String,
+        palette: TerminalPalette,
+        wallpaperURL: URL,
+        mode: String
+    ) -> String {
+        var config = removeManagedBlock(
+            from: existingConfig,
+            start: starshipThemeStart,
+            end: starshipThemeEnd
+        )
+        config = removeManagedBlock(
+            from: config,
+            start: starshipPaletteStart,
+            end: starshipPaletteEnd
+        )
+        config = removeTopLevelStarshipPalette(from: config)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var sections = [starshipThemeBlock(wallpaperURL: wallpaperURL, mode: mode)]
+        if !config.isEmpty {
+            sections.append(config)
+        }
+        sections.append(starshipPaletteBlock(palette: palette))
+        return sections.joined(separator: "\n\n") + "\n"
+    }
+
+    private static func starshipThemeBlock(wallpaperURL: URL, mode: String) -> String {
+        [
+            starshipThemeStart,
+            "# Wallpaper: \(wallpaperURL.path)",
+            "# Mode: \(mode)",
+            "palette = \"mwall\"",
+            starshipThemeEnd
+        ].joined(separator: "\n")
+    }
+
+    private static func starshipPaletteBlock(palette: TerminalPalette) -> String {
+        func normal(_ index: Int, fallback: RGBColor) -> RGBColor {
+            palette.normal[safe: index] ?? fallback
+        }
+        func bright(_ index: Int, fallback: RGBColor) -> RGBColor {
+            palette.bright[safe: index] ?? normal(index, fallback: fallback)
+        }
+
+        let black = normal(0, fallback: palette.background)
+        let red = normal(1, fallback: palette.cursor)
+        let green = normal(2, fallback: palette.cursor)
+        let yellow = normal(3, fallback: palette.cursor)
+        let blue = normal(4, fallback: palette.cursor)
+        let purple = normal(5, fallback: palette.cursor)
+        let cyan = normal(6, fallback: palette.cursor)
+        let white = normal(7, fallback: palette.foreground)
+
+        var pairs: [(String, RGBColor)] = []
+        pairs += [
+            ("black", black),
+            ("red", red),
+            ("green", green),
+            ("yellow", yellow),
+            ("blue", blue),
+            ("purple", purple),
+            ("magenta", purple),
+            ("cyan", cyan),
+            ("white", white)
+        ]
+        pairs += [
+            ("bright-black", bright(0, fallback: palette.background)),
+            ("bright-red", bright(1, fallback: palette.cursor)),
+            ("bright-green", bright(2, fallback: palette.cursor)),
+            ("bright-yellow", bright(3, fallback: palette.cursor)),
+            ("bright-blue", bright(4, fallback: palette.cursor)),
+            ("bright-purple", bright(5, fallback: palette.cursor)),
+            ("bright-magenta", bright(5, fallback: palette.cursor)),
+            ("bright-cyan", bright(6, fallback: palette.cursor)),
+            ("bright-white", bright(7, fallback: palette.foreground)),
+            ("mwall-foreground", palette.foreground),
+            ("mwall-background", palette.background),
+            ("mwall-cursor", palette.cursor),
+            ("mwall-selection", palette.selectionBackground)
+        ]
+
+        return ([starshipPaletteStart, "[palettes.mwall]"] + pairs.map { "\($0.0) = \"\($0.1.hex)\"" } + [starshipPaletteEnd])
+            .joined(separator: "\n")
+    }
+
     private static func writeIterm2(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
         let dark = StorePaths.appSupport.appendingPathComponent("MWall Dark.itermcolors")
         let light = StorePaths.appSupport.appendingPathComponent("MWall Light.itermcolors")
@@ -472,6 +577,42 @@ enum ThemeManager {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    private static func removeManagedBlock(from text: String, start: String, end: String) -> String {
+        var lines: [String] = []
+        var isSkipping = false
+        for line in text.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed == start {
+                isSkipping = true
+                continue
+            }
+            if isSkipping {
+                if trimmed == end {
+                    isSkipping = false
+                }
+                continue
+            }
+            lines.append(line)
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func removeTopLevelStarshipPalette(from text: String) -> String {
+        var lines: [String] = []
+        var isInTopLevel = true
+        for line in text.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("[") {
+                isInTopLevel = false
+            }
+            if isInTopLevel && trimmed.range(of: #"^palette\s*="#, options: .regularExpression) != nil {
+                continue
+            }
+            lines.append(line)
+        }
+        return lines.joined(separator: "\n")
     }
 
     private static func colorDict(name: String, color: RGBColor) -> String {
