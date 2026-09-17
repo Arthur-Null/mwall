@@ -35,9 +35,11 @@ func neovimReloadsGeneratedThemesInOneProcess() throws {
         .appendingPathComponent("neovim_reload.lua")
     let process = Process()
     process.executableURL = neovimExecutable
+    process.currentDirectoryURL = root
     process.arguments = ["--headless", "-u", "NONE", "-i", "NONE", "-l", script.path]
     var environment = ProcessInfo.processInfo.environment
     environment["MWALL_NVIM_TEST_DIR"] = root.path
+    environment["NVIM_LOG_FILE"] = root.appendingPathComponent("nvim.log").path
     process.environment = environment
     let output = Pipe()
     process.standardOutput = output
