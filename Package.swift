@@ -18,7 +18,8 @@ let package = Package(
         .testTarget(
             name: "MWallTests",
             dependencies: ["MWall"],
-            path: "Tests/MWallTests"
+            path: "Tests/MWallTests",
+            exclude: ["neovim_reload.lua"]
         )
     ]
 )

@@ -173,13 +173,24 @@ enum ThemeManager {
     }
 
     private static func writeNeovim(_ palettes: TerminalPalettePair, _ wallpaperURL: URL) throws -> [URL] {
-        let dark = home(".config/nvim/colors/mwall-dark.lua")
-        let light = home(".config/nvim/colors/mwall-light.lua")
-        let current = home(".config/nvim/colors/mwall.lua")
+        try writeNeovim(palettes, wallpaperURL, configDirectory: home(".config/nvim"))
+    }
+
+    static func writeNeovim(
+        _ palettes: TerminalPalettePair,
+        _ wallpaperURL: URL,
+        configDirectory: URL
+    ) throws -> [URL] {
+        let dark = configDirectory.appendingPathComponent("colors/mwall-dark.lua")
+        let light = configDirectory.appendingPathComponent("colors/mwall-light.lua")
+        let current = configDirectory.appendingPathComponent("colors/mwall.lua")
+        let reloader = configDirectory.appendingPathComponent("plugin/mwall-reload.lua")
+        // Install first so selecting any freshly generated scheme can start live updates.
+        try write(NeovimThemeReloader.script, to: reloader)
         try write(neovimConfig(palette: palettes.dark, wallpaperURL: wallpaperURL, mode: "dark", schemeName: "mwall-dark"), to: dark)
         try write(neovimConfig(palette: palettes.light, wallpaperURL: wallpaperURL, mode: "light", schemeName: "mwall-light"), to: light)
         try write(neovimConfig(palette: palettes.current, wallpaperURL: wallpaperURL, mode: "current", schemeName: "mwall"), to: current)
-        return [dark, light, current]
+        return [dark, light, current, reloader]
     }
 
     private static func neovimConfig(
@@ -340,6 +351,8 @@ enum ThemeManager {
         ]
 
         lines += highlights.map { "set(0, \"\($0.0)\", \($0.1))" }
+        // Also bootstrap when a scheme is selected after Neovim's plugin startup phase.
+        lines += ["", "vim.cmd(\"runtime plugin/mwall-reload.lua\")"]
         return lines.joined(separator: "\n") + "\n"
     }
 
