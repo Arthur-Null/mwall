@@ -99,7 +99,7 @@ private struct AgentColors {
         surface = palette.background.blended(with: palette.foreground, amount: isDark ? 0.08 : 0.05)
         panel = palette.background.blended(with: palette.foreground, amount: isDark ? 0.12 : 0.08)
         func normal(_ index: Int) -> RGBColor {
-            palette.normal.indices.contains(index) ? palette.normal[index] : palette.cursor
+            palette.normal.indices.contains(index) ? palette.normal[index] : palette.accent
         }
         red = normal(1)
         green = normal(2)
@@ -113,9 +113,9 @@ private struct AgentColors {
 
     var piColors: [String: String] {
         [
-            "accent": palette.cursor.hex,
+            "accent": palette.accent.hex,
             "border": blue.hex,
-            "borderAccent": palette.cursor.hex,
+            "borderAccent": palette.accent.hex,
             "borderMuted": dim.hex,
             "success": green.hex,
             "error": red.hex,
@@ -126,7 +126,7 @@ private struct AgentColors {
             "thinkingText": muted.hex,
             "selectedBg": palette.selectionBackground.hex,
             "scrollbarTrack": dim.hex,
-            "scrollbarThumb": palette.cursor.hex,
+            "scrollbarThumb": palette.accent.hex,
             "searchMatchBg": palette.selectionBackground.hex,
             "searchMatchText": palette.selectionForeground.hex,
             "userMessageBg": panel.hex,
@@ -137,9 +137,9 @@ private struct AgentColors {
             "toolPendingBg": surface.hex,
             "toolSuccessBg": added.hex,
             "toolErrorBg": removed.hex,
-            "toolTitle": palette.cursor.hex,
+            "toolTitle": palette.accent.hex,
             "toolOutput": palette.foreground.hex,
-            "mdHeading": palette.cursor.hex,
+            "mdHeading": palette.accent.hex,
             "mdLink": blue.hex,
             "mdLinkUrl": muted.hex,
             "mdCode": cyan.hex,
@@ -167,7 +167,7 @@ private struct AgentColors {
             "thinkingMedium": cyan.hex,
             "thinkingHigh": magenta.hex,
             "thinkingXhigh": red.hex,
-            "thinkingMax": palette.cursor.hex,
+            "thinkingMax": palette.accent.hex,
             "bashMode": yellow.hex
         ]
     }
@@ -196,7 +196,7 @@ private struct AgentColors {
             rule("Variables", "variable", palette.foreground),
             rule("Operators", "keyword.operator", cyan),
             rule("Punctuation", "punctuation", muted),
-            rule("Headings", "markup.heading", palette.cursor, style: "bold"),
+            rule("Headings", "markup.heading", palette.accent, style: "bold"),
             rule("Links", "markup.underline.link, string.other.link", blue, style: "underline"),
             rule("Inline code", "markup.raw", cyan),
             rule("Added", "markup.inserted", green),

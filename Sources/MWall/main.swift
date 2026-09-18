@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = NSHostingController(
             rootView: ContentView().environmentObject(store)
         )
+        if CommandLine.arguments.contains("--show"), let button = statusItem.button { showPopover(button) }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

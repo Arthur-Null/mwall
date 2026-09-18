@@ -46,7 +46,7 @@ enum UISnapshot {
         }
         let dark = args[7] == "dark"
         NSApp.setActivationPolicy(.prohibited)
-        let root = ContentView(initialPage: page).environmentObject(store)
+        let root = ContentView(initialPage: page, darkPreview: dark).environmentObject(store)
             .preferredColorScheme(dark ? .dark : .light)
             .frame(width: width, height: height)
         let view = NSHostingView(rootView: root)

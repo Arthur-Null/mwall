@@ -44,7 +44,7 @@ enum ThemeManager {
         let payload = CodexThemeImport(
             codeThemeId: "everforest",
             theme: CodexTheme(
-                accent: palette.cursor.hex.lowercased(),
+                accent: palette.accent.hex.lowercased(),
                 contrast: 45,
                 fonts: CodexThemeFonts(
                     code: "\"Maple Mono NF CN\"",
@@ -205,13 +205,13 @@ enum ThemeManager {
         let subtle = palette.foreground.blended(with: palette.background, amount: isDark ? 0.58 : 0.46)
         let surface = palette.background.blended(with: palette.foreground, amount: isDark ? 0.08 : 0.05)
         let panel = palette.background.blended(with: palette.foreground, amount: isDark ? 0.12 : 0.08)
-        let active = palette.cursor.blended(with: palette.background, amount: isDark ? 0.78 : 0.84)
-        let red = palette.normal[safe: 1] ?? palette.cursor
-        let green = palette.normal[safe: 2] ?? palette.cursor
-        let yellow = palette.normal[safe: 3] ?? palette.cursor
-        let blue = palette.normal[safe: 4] ?? palette.cursor
-        let magenta = palette.normal[safe: 5] ?? palette.cursor
-        let cyan = palette.normal[safe: 6] ?? palette.cursor
+        let active = palette.accent.blended(with: palette.background, amount: isDark ? 0.78 : 0.84)
+        let red = palette.normal[safe: 1] ?? palette.accent
+        let green = palette.normal[safe: 2] ?? palette.accent
+        let yellow = palette.normal[safe: 3] ?? palette.accent
+        let blue = palette.normal[safe: 4] ?? palette.accent
+        let magenta = palette.normal[safe: 5] ?? palette.accent
+        let cyan = palette.normal[safe: 6] ?? palette.accent
         let white = palette.normal[safe: 7] ?? palette.foreground
         let brightRed = palette.bright[safe: 1] ?? red
         let brightGreen = palette.bright[safe: 2] ?? green
@@ -243,11 +243,11 @@ enum ThemeManager {
             ("NormalNC", nvimHighlight(fg: palette.foreground, bg: palette.background)),
             ("NormalFloat", nvimHighlight(fg: palette.foreground, bg: panel)),
             ("FloatBorder", nvimHighlight(fg: subtle, bg: panel)),
-            ("FloatTitle", nvimHighlight(fg: palette.cursor, bg: panel, bold: true)),
+            ("FloatTitle", nvimHighlight(fg: palette.accent, bg: panel, bold: true)),
             ("SignColumn", nvimHighlight(fg: subtle, bg: palette.background)),
             ("LineNr", nvimHighlight(fg: subtle, bg: palette.background)),
             ("CursorLine", nvimHighlight(bg: surface)),
-            ("CursorLineNr", nvimHighlight(fg: palette.cursor, bg: surface, bold: true)),
+            ("CursorLineNr", nvimHighlight(fg: palette.accent, bg: surface, bold: true)),
             ("ColorColumn", nvimHighlight(bg: surface)),
             ("WinSeparator", nvimHighlight(fg: surface)),
             ("StatusLine", nvimHighlight(fg: palette.foreground, bg: panel)),
@@ -260,11 +260,11 @@ enum ThemeManager {
             ("PmenuThumb", nvimHighlight(bg: subtle)),
             ("Visual", nvimHighlight(bg: palette.selectionBackground)),
             ("Search", nvimHighlight(fg: palette.cursorText, bg: yellow)),
-            ("IncSearch", nvimHighlight(fg: palette.cursorText, bg: palette.cursor)),
-            ("CurSearch", nvimHighlight(fg: palette.cursorText, bg: palette.cursor)),
-            ("MatchParen", nvimHighlight(fg: palette.cursor, bg: active, bold: true)),
+            ("IncSearch", nvimHighlight(fg: palette.cursorText, bg: palette.accent)),
+            ("CurSearch", nvimHighlight(fg: palette.cursorText, bg: palette.accent)),
+            ("MatchParen", nvimHighlight(fg: palette.accent, bg: active, bold: true)),
             ("Directory", nvimHighlight(fg: blue, bold: true)),
-            ("Title", nvimHighlight(fg: palette.cursor, bold: true)),
+            ("Title", nvimHighlight(fg: palette.accent, bold: true)),
             ("Question", nvimHighlight(fg: green)),
             ("MoreMsg", nvimHighlight(fg: green)),
             ("ModeMsg", nvimHighlight(fg: palette.foreground)),
@@ -325,14 +325,14 @@ enum ThemeManager {
             ("TelescopeNormal", nvimHighlight(fg: palette.foreground, bg: panel)),
             ("TelescopeBorder", nvimHighlight(fg: subtle, bg: panel)),
             ("TelescopeSelection", nvimHighlight(fg: palette.foreground, bg: active)),
-            ("TelescopeMatching", nvimHighlight(fg: palette.cursor, bold: true)),
+            ("TelescopeMatching", nvimHighlight(fg: palette.accent, bold: true)),
             ("NeoTreeNormal", nvimHighlight(fg: palette.foreground, bg: palette.background)),
             ("NeoTreeDirectoryName", nvimHighlight(fg: blue)),
             ("NeoTreeFileName", nvimHighlight(fg: palette.foreground)),
             ("NeoTreeGitAdded", nvimHighlight(fg: green)),
             ("NeoTreeGitModified", nvimHighlight(fg: yellow)),
             ("NeoTreeGitDeleted", nvimHighlight(fg: red)),
-            ("CmpItemAbbrMatch", nvimHighlight(fg: palette.cursor, bold: true)),
+            ("CmpItemAbbrMatch", nvimHighlight(fg: palette.accent, bold: true)),
             ("CmpItemKind", nvimHighlight(fg: magenta)),
             ("@comment", nvimHighlight(fg: subtle, italic: true)),
             ("@constant", nvimHighlight(fg: cyan)),

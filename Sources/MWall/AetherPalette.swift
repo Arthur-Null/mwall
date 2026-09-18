@@ -65,7 +65,7 @@ enum AetherPalette {
             source: colors[4], background: colors[0], foreground: colors[7],
             cursor: colors[7], cursorText: colors[0],
             selectionBackground: colors[7], selectionForeground: colors[0],
-            normal: Array(colors.prefix(8)), bright: Array(colors.suffix(8))
+            normal: Array(colors.prefix(8)), bright: Array(colors.suffix(8)), accentOverride: colors[4]
         )
     }
 

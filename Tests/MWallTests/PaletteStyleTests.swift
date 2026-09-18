@@ -57,10 +57,32 @@ import UniformTypeIdentifiers
         #expect(palette.background == palette.normal[0])
         #expect(palette.foreground == palette.normal[7])
         #expect(palette.cursor == palette.foreground)
+        #expect(palette.accent == palette.normal[4])
         #expect(palette.selectionBackground == palette.foreground)
         #expect(palette.selectionForeground == palette.background)
     }
     #expect(pair.dark.background != pair.light.background)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("mwall-aether-roles-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    _ = try AgentThemeWriter.writePi(pair, file, directory: root.appendingPathComponent("pi"))
+    _ = try AgentThemeWriter.writeCodexCLI(pair, file, directory: root.appendingPathComponent("codex"))
+    let pi = try #require(
+        JSONSerialization.jsonObject(
+            with: Data(
+                contentsOf:
+                    root.appendingPathComponent("pi/themes/mwall-dark.json"))) as? [String: Any])
+    let colors = try #require(pi["colors"] as? [String: String])
+    #expect(colors["accent"] == pair.dark.normal[4].hex)
+    let codex = try #require(
+        PropertyListSerialization.propertyList(
+            from: Data(
+                contentsOf:
+                    root.appendingPathComponent("codex/themes/mwall-dark.tmTheme")), options: [], format: nil)
+            as? [String: Any])
+    let rows = try #require(codex["settings"] as? [[String: Any]])
+    let base = try #require(rows.first?["settings"] as? [String: String])
+    #expect(base["caret"] == pair.dark.foreground.hex)
+
 }
 
 @Test(
@@ -70,7 +92,7 @@ import UniformTypeIdentifiers
 func productionStylesMatchReviewedPreview() throws {
     struct Variant: Decodable {
         let id: String
-        let palettes: TerminalPalettePair
+        var palettes: TerminalPalettePair
     }
     struct Image: Decodable {
         let file: String
@@ -84,9 +106,13 @@ func productionStylesMatchReviewedPreview() throws {
     #expect(images.count == 8)
     for image in images {
         for style in PaletteStyle.allCases {
-            let expected = try #require(image.variants.first { $0.id == style.rawValue })
+            var expected = try #require(image.variants.first { $0.id == style.rawValue })
             let actual = try PaletteGenerator.generate(
                 from: cache.appendingPathComponent("Full").appendingPathComponent(image.file), style: style)
+            if style == .aether {
+                expected.palettes.dark.accentOverride = expected.palettes.dark.normal[4]
+                expected.palettes.light.accentOverride = expected.palettes.light.normal[4]
+            }
             #expect(actual == expected.palettes, Comment(rawValue: "\(image.file) / \(style.rawValue)"))
         }
     }

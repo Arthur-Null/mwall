@@ -1,6 +1,9 @@
 import AppKit
 import SwiftUI
 
+// Explicit property-wrapper alias also works with SDKs whose new State macro plugin is absent.
+private typealias ViewState<Value> = SwiftUI.State<Value>
+
 enum MWallPage: String, CaseIterable, Identifiable {
     case wallpapers = "壁纸"
     case palettes = "配色"
@@ -10,11 +13,12 @@ enum MWallPage: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @EnvironmentObject private var store: AppStore
-    @State private var page: MWallPage
-    @State private var darkPreview = true
+    @ViewState private var page: MWallPage
+    @ViewState private var darkPreview = true
 
-    init(initialPage: MWallPage = .wallpapers) {
-        _page = State(initialValue: initialPage)
+    init(initialPage: MWallPage = .wallpapers, darkPreview: Bool = true) {
+        _page = ViewState(initialValue: initialPage)
+        _darkPreview = ViewState(initialValue: darkPreview)
     }
 
     var body: some View {
