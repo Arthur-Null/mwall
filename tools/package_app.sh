@@ -10,11 +10,12 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 cd "$ROOT_DIR"
 tools/build_aether.sh
 swift build -c release
+BIN_DIR="$(swift build -c release --show-bin-path)"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
-cp ".build/release/mwall" "$MACOS_DIR/mwall"
+cp "$BIN_DIR/mwall" "$MACOS_DIR/mwall"
 cp ".build/mwall-aether" "$MACOS_DIR/mwall-aether"
 cp "Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
 cp "Resources/MWall.entitlements" "$RESOURCES_DIR/MWall.entitlements"

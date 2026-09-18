@@ -69,7 +69,7 @@ No theme-application command is invoked in Aether. Extraction can use its standa
 
 Render the real SwiftUI view with isolated fixture state, without changing settings, wallpaper, or themes:
 
-    .build/debug/mwall --snapshot-ui /tmp/mwall-palette.png \
+    "$(swift build --show-bin-path)/mwall" --snapshot-ui /tmp/mwall-palette.png \
       "$HOME/Library/Caches/MWall/Unsplash" 540 740 配色 light faithful
 
 The page can be 壁纸, 配色, or 设置; appearance can be light or dark. Minimum supported content size is 440 by 620 points. Fixture input uses the local cache's metadata.json and Full/ originals. Generated captures are QA artifacts, not mockups.

@@ -48,6 +48,7 @@ enum UISnapshot {
         NSApp.setActivationPolicy(.prohibited)
         let root = ContentView(initialPage: page, darkPreview: dark).environmentObject(store)
             .preferredColorScheme(dark ? .dark : .light)
+            .environment(\.controlActiveState, .active)
             .frame(width: width, height: height)
         let view = NSHostingView(rootView: root)
         let window = NSWindow(

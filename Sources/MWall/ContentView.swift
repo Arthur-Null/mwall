@@ -390,8 +390,13 @@ private struct WallpaperTile: View {
                 .padding(5)
                 .accessibilityLabel(store.isFavorite(item) ? "取消收藏" : "收藏壁纸")
             }
-            Text(item.title).font(.caption).lineLimit(2).frame(height: 32, alignment: .topLeading)
-            Text(item.source ?? item.kind.title).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            Text(
+                item.id.hasPrefix("unsplash:")
+                    ? (item.source?.replacingOccurrences(of: "Photo by ", with: "") ?? item.title) : item.title
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .help(item.title)
     }
