@@ -84,7 +84,9 @@ enum AetherPalette {
         process.waitUntilExit()
         timeout.cancel()
         guard process.terminationStatus == 0 else {
-            throw failure("Aether 取色失败，请换一张图片重试。")
+            struct ExtractionError: Decodable { let error: String }
+            let detail = (try? JSONDecoder().decode(ExtractionError.self, from: data))?.error
+            throw failure(detail.map { "Aether 取色失败：\($0)" } ?? "Aether 取色失败，请换一张图片重试。")
         }
         let result = try JSONDecoder().decode(Result.self, from: data)
         guard result.colors.count == 16, result.mode == "normal", result.lightMode == light else {
