@@ -1,0 +1,12 @@
+Aether
+https://github.com/omacom/aether
+Upstream revision: f0ae849966cc038a21808170b21e07772cb3619c
+
+The bundled mwall-aether executable runs Aether's unmodified CLI through a
+headless launcher. Upstream describes its license as:
+"MIT - Created by Bjarne Overli"
+See the pinned upstream README:
+https://github.com/omacom/aether/blob/f0ae849966cc038a21808170b21e07772cb3619c/README.md#license
+
+The upstream checkout and its Go dependencies remain available under
+.build/aether-source when building MWall from source.

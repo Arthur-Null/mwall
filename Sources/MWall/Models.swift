@@ -1,6 +1,6 @@
 import Foundation
 
-enum WallpaperKind: String, Codable, CaseIterable, Identifiable {
+enum WallpaperKind: String, Codable, CaseIterable, Identifiable, Sendable {
     case builtIn
     case local
     case unsplash
@@ -20,7 +20,7 @@ enum WallpaperKind: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct WallpaperItem: Identifiable, Codable, Hashable {
+struct WallpaperItem: Identifiable, Codable, Hashable, Sendable {
     var id: String
     var url: URL
     var title: String
@@ -58,6 +58,7 @@ struct HistoryEntry: Identifiable, Codable, Hashable {
 }
 
 struct AppSettings: Codable, Equatable {
+    var paletteStyle: PaletteStyle = .faithful
     var applyToAllScreens = true
     var applyThemeAfterWallpaperChange = true
     var reloadTerminalsAfterThemeChange = true
@@ -66,9 +67,36 @@ struct AppSettings: Codable, Equatable {
     var currentSource: WallpaperKind = .builtIn
     var unsplashAccessKey = ""
     var unsplashCacheLimitMB = 600
+
+    init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case paletteStyle, applyToAllScreens, applyThemeAfterWallpaperChange
+        case reloadTerminalsAfterThemeChange, launchAtLogin, enabledThemeTargets
+        case currentSource, unsplashAccessKey, unsplashCacheLimitMB
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        paletteStyle =
+            (try c.decodeIfPresent(String.self, forKey: .paletteStyle))
+            .flatMap(PaletteStyle.init(rawValue:)) ?? .faithful
+        applyToAllScreens = try c.decodeIfPresent(Bool.self, forKey: .applyToAllScreens) ?? true
+        applyThemeAfterWallpaperChange =
+            try c.decodeIfPresent(Bool.self, forKey: .applyThemeAfterWallpaperChange) ?? true
+        reloadTerminalsAfterThemeChange =
+            try c.decodeIfPresent(Bool.self, forKey: .reloadTerminalsAfterThemeChange) ?? true
+        launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+        enabledThemeTargets =
+            try c.decodeIfPresent(Set<ThemeTarget>.self, forKey: .enabledThemeTargets)
+            ?? Set(ThemeTarget.defaultEnabled)
+        currentSource = try c.decodeIfPresent(WallpaperKind.self, forKey: .currentSource) ?? .builtIn
+        unsplashAccessKey = try c.decodeIfPresent(String.self, forKey: .unsplashAccessKey) ?? ""
+        unsplashCacheLimitMB = try c.decodeIfPresent(Int.self, forKey: .unsplashCacheLimitMB) ?? 600
+    }
 }
 
-struct LocalFolderBookmark: Identifiable, Codable, Hashable {
+struct LocalFolderBookmark: Identifiable, Codable, Hashable, Sendable {
     var id: UUID
     var url: URL
     var bookmarkData: Data?
@@ -119,7 +147,8 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
 
 enum StorePaths {
     static var appSupport: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first!
         return base.appendingPathComponent("MWall", isDirectory: true)
     }
 

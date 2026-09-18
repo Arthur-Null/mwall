@@ -1,10 +1,11 @@
 # MWall
 
-MWall is a native macOS menu bar wallpaper app with Noctalia-style terminal theme generation.
+MWall is a native macOS menu bar wallpaper app with four wallpaper-derived palette styles and live theme exports.
 
 ## Run
 
 ```sh
+tools/build_aether.sh
 swift run mwall
 ```
 
@@ -42,6 +43,41 @@ MWALL_SANDBOX=1 tools/package_app.sh
 - Neovim colorschemes with live updates for open editors, including AstroNvim and LazyVim.
 - Pi themes with native live updates, plus Codex CLI syntax-highlighting themes.
 - Launch at Login toggle when running as `MWall.app`.
+
+## Palette styles and interface
+
+The menu bar panel has three pages: **壁纸** for browsing, **配色** for choosing a generation style and previewing code, and **设置** for app targets, automation, folders, and Unsplash.
+
+- **Aether** uses the upstream normal-mode generator at commit f0ae849966cc038a21808170b21e07772cb3619c, without MWall recoloring.
+- **忠实壁纸** (default) retains several supported wallpaper hues and their chroma.
+- **柔和** uses the same extraction with 0.65x accent chroma.
+- **鲜艳** uses the same extraction with 1.35x accent chroma.
+
+The former single-seed/fixed-hue generator has been removed. Existing settings migrate to **忠实壁纸** while keeping target apps and other preferences. Style changes update the preview without writing theme files. **生成并应用**, Codex App copying, and automatic generation after wallpaper changes all use the saved style.
+
+Each style generates both light and dark palettes. Previewing Unsplash uses a cached original when present; otherwise the interface labels the thumbnail preview. Applying downloads or reuses the original before extracting colors. Generation runs off the UI thread. Cached results are keyed by image path, modification time, size, and style.
+
+The three MWall styles use aspect-preserving sRGB sampling and OKLab clustering with real-pixel representatives. They target 7:1 main-text contrast and 4.5:1 ANSI accent contrast against the background. These checks do not guarantee that every syntax role is visually distinct. Missing wallpaper hues can also weaken conventional ANSI red/green semantics. Aether keeps its own contrast and hue decisions.
+
+### Aether build dependency
+
+tools/build_aether.sh fetches a pinned upstream checkout into .build/aether-source and builds a small launcher into Aether's unchanged CLI. Go is needed only when building the helper; Go's toolchain download may run on the first build. The packaged MWall.app includes the executable and needs neither a separate Aether installation nor Go at runtime.
+
+No theme-application command is invoked in Aether. Extraction can use its standard cache under ~/.cache/aether/color-cache. For development and tests only, MWALL_AETHER_BIN can specify an explicit helper path. The source revision is recorded in tools/aether/UPSTREAM_REVISION.
+
+### Visual verification
+
+Render the real SwiftUI view with isolated fixture state, without changing settings, wallpaper, or themes:
+
+    .build/debug/mwall --snapshot-ui /tmp/mwall-palette.png \
+      "$HOME/Library/Caches/MWall/Unsplash" 540 740 配色 light faithful
+
+The page can be 壁纸, 配色, or 设置; appearance can be light or dark. Minimum supported content size is 440 by 620 points. Fixture input uses the local cache's metadata.json and Full/ originals. Generated captures are QA artifacts, not mockups.
+
+To verify that production output matches the reviewed comparison JSON:
+
+    MWALL_PALETTE_REFERENCE=/path/to/palette-preview/index.json \
+    MWALL_PALETTE_CACHE="$HOME/Library/Caches/MWall/Unsplash" swift test -c release
 
 ## Unsplash
 

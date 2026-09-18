@@ -22,10 +22,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 430, height: 620)
+        popover.contentSize = NSSize(width: 540, height: 740)
         popover.contentViewController = NSHostingController(
             rootView: ContentView().environmentObject(store)
         )
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if let button = statusItem?.button { showPopover(button) }
+        return true
     }
 
     @objc private func togglePopover(_ sender: NSStatusBarButton) {
@@ -51,7 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showContextMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "换下一张", action: #selector(applyRandomWallpaper), keyEquivalent: ""))
+        menu.addItem(
+            NSMenuItem(title: "换下一张", action: #selector(applyRandomWallpaper), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "重新扫描图库", action: #selector(refreshLibrary), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "退出 MWall", action: #selector(quit), keyEquivalent: "q"))
@@ -75,6 +81,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()
+if CommandLine.arguments.contains("--snapshot-ui") {
+    do {
+        try UISnapshot.run()
+        app.run()
+    } catch {
+        fputs("Snapshot failed: \(error)\n", stderr)
+        exit(1)
+    }
+} else {
+    let delegate = AppDelegate()
+    app.delegate = delegate
+    withExtendedLifetime(delegate) { app.run() }
+}

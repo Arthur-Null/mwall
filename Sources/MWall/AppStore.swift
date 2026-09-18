@@ -9,22 +9,90 @@ final class AppStore: ObservableObject {
     @Published private(set) var history: [HistoryEntry] = []
     @Published private(set) var favorites: [WallpaperItem] = []
     @Published var settings = AppSettings() {
-        didSet { Persistence.save(settings, to: StorePaths.settings) }
+        didSet { if persistsChanges { Persistence.save(settings, to: StorePaths.settings) } }
     }
     @Published var localFolders: [LocalFolderBookmark] = [] {
-        didSet { Persistence.save(localFolders, to: StorePaths.folderBookmarks) }
+        didSet { if persistsChanges { Persistence.save(localFolders, to: StorePaths.folderBookmarks) } }
     }
     @Published var lastMessage = ""
     @Published var selectedWallpaperID: String?
     @Published var isWorking = false
 
+    @Published var previewPalettes: TerminalPalettePair?
+    @Published var isPreviewLoading = false
+    @Published var previewError: String?
+    private let persistsChanges: Bool
     private let maxHistoryCount = 80
+
+    init(previewItems: [WallpaperItem]? = nil) {
+        persistsChanges = previewItems == nil
+        if let previewItems {
+            unsplashWallpapers = previewItems
+            settings.currentSource = .unsplash
+            selectedWallpaperID = previewItems.first?.id
+        }
+    }
+
+    var currentWallpaper: WallpaperItem? { currentWallpaperCandidate() }
+
+    var previewIdentity: String {
+        guard let item = currentWallpaper else { return "none" }
+        return item.id + "|" + previewURL(for: item).path + "|" + settings.paletteStyle.rawValue
+    }
+
+    var usesThumbnailPreview: Bool {
+        guard let item = currentWallpaper else { return false }
+        return item.fullResolutionURL != nil && previewURL(for: item) == item.url
+    }
+
+    func selectWallpaper(_ item: WallpaperItem) { selectedWallpaperID = item.id }
+
+    func refreshPalettePreview() async {
+        let identity = previewIdentity
+        previewPalettes = nil
+        previewError = nil
+        guard let item = currentWallpaper else {
+            isPreviewLoading = false
+            return
+        }
+        isPreviewLoading = true
+        do {
+            let pair = try await PaletteService.shared.generate(
+                from: previewURL(for: item), style: settings.paletteStyle, folders: localFolders
+            )
+            guard !Task.isCancelled, identity == previewIdentity else { return }
+            previewPalettes = pair
+            isPreviewLoading = false
+        } catch {
+            guard !Task.isCancelled, identity == previewIdentity else { return }
+            isPreviewLoading = false
+            previewError = error.localizedDescription
+        }
+    }
+
+    private func previewURL(for item: WallpaperItem) -> URL {
+        if let full = item.fullLocalURL, FileManager.default.fileExists(atPath: full.path) {
+            return full
+        }
+        return item.url
+    }
+
+    private func resolveOriginal(_ item: WallpaperItem) async throws -> URL {
+        if item.fullResolutionURL != nil {
+            let (url, updated) = try await UnsplashService.fullWallpaperURL(
+                for: item, accessKey: settings.unsplashAccessKey)
+            upsertUnsplashWallpaper(updated)
+            return url
+        }
+        return item.url
+    }
 
     func bootstrap() {
         Persistence.prepareDirectories()
         WallpaperService.ensureBuiltInWallpapers()
 
-        settings = Persistence.load(AppSettings.self, from: StorePaths.settings, fallback: AppSettings())
+        settings = Persistence.load(
+            AppSettings.self, from: StorePaths.settings, fallback: AppSettings())
         pruneUnsupportedThemeTargets()
         localFolders = loadLocalFolders()
         favorites = Persistence.load([WallpaperItem].self, from: StorePaths.favorites, fallback: [])
@@ -44,7 +112,11 @@ final class AppStore: ObservableObject {
         case .favorite:
             favorites
         case .history:
-            history.map { var item = $0.item; item.kind = .history; return item }
+            history.map {
+                var item = $0.item
+                item.kind = .history
+                return item
+            }
         }
     }
 
@@ -79,7 +151,9 @@ final class AppStore: ObservableObject {
         for url in panel.urls {
             let path = url.standardizedFileURL.path
             if known.insert(path).inserted {
-                localFolders.append(LocalFolderBookmark(url: url, bookmarkData: SecurityScopedBookmarks.makeBookmark(for: url)))
+                localFolders.append(
+                    LocalFolderBookmark(
+                        url: url, bookmarkData: SecurityScopedBookmarks.makeBookmark(for: url)))
             }
         }
         settings.currentSource = .local
@@ -96,6 +170,7 @@ final class AppStore: ObservableObject {
         if source == .unsplash {
             ensureUnsplashPool()
         }
+        selectedWallpaperID = visibleWallpapers.first?.id
     }
 
     func toggleFavorite(_ item: WallpaperItem) {
@@ -122,60 +197,34 @@ final class AppStore: ObservableObject {
     }
 
     func applyWallpaper(_ item: WallpaperItem) {
-        if item.fullResolutionURL != nil {
-            applyUnsplashWallpaper(item)
-            return
-        }
-        applyResolvedWallpaper(item, wallpaperURL: item.url)
-    }
-
-    private func applyResolvedWallpaper(_ item: WallpaperItem, wallpaperURL: URL) {
-        do {
-            try SecurityScopedBookmarks.withAccess(for: wallpaperURL, folders: localFolders) {
-                try WallpaperService.setDesktopImage(wallpaperURL, allScreens: settings.applyToAllScreens)
-                selectedWallpaperID = item.id
-                addHistory(item)
-                lastMessage = "已应用：\(item.title)"
-
-                guard settings.applyThemeAfterWallpaperChange else {
-                    return
-                }
-                let palettes = try PaletteGenerator.generate(from: wallpaperURL)
-                let report = try ThemeManager.apply(
-                    palettes: palettes,
-                    wallpaperURL: wallpaperURL,
-                    targets: settings.enabledThemeTargets,
-                    reloadTerminals: settings.reloadTerminalsAfterThemeChange
-                )
-                lastMessage = "已应用壁纸，并写入 \(report.writtenFiles.count) 个主题文件"
-            }
-        } catch {
-            lastMessage = "失败：\(error.localizedDescription)"
-            NSAlert(error: error).runModal()
-        }
-    }
-
-    private func applyUnsplashWallpaper(_ item: WallpaperItem) {
+        guard !isWorking else { return }
         isWorking = true
-        lastMessage = "正在准备 Unsplash 原图..."
+        let options = settings
+        lastMessage = "正在准备壁纸…"
         Task {
+            defer { isWorking = false }
             do {
-                let (fullURL, updatedItem) = try await UnsplashService.fullWallpaperURL(
-                    for: item,
-                    accessKey: settings.unsplashAccessKey
-                )
-                await MainActor.run {
-                    isWorking = false
-                    upsertUnsplashWallpaper(updatedItem)
-                    applyResolvedWallpaper(updatedItem, wallpaperURL: fullURL)
-                    cleanupCacheSilently()
+                let url = try await resolveOriginal(item)
+                try SecurityScopedBookmarks.withAccess(for: url, folders: localFolders) {
+                    try WallpaperService.setDesktopImage(url, allScreens: options.applyToAllScreens)
                 }
+                selectedWallpaperID = item.id
+                var applied = item
+                applied.fullLocalURL = url
+                addHistory(applied)
+                lastMessage = "已应用壁纸"
+                if options.applyThemeAfterWallpaperChange && !options.enabledThemeTargets.isEmpty {
+                    let palettes = try await PaletteService.shared.generate(
+                        from: url, style: options.paletteStyle, folders: localFolders)
+                    let report = try ThemeManager.apply(
+                        palettes: palettes, wallpaperURL: url,
+                        targets: options.enabledThemeTargets,
+                        reloadTerminals: options.reloadTerminalsAfterThemeChange)
+                    lastMessage = "已应用壁纸与\(options.paletteStyle.title)主题，共 \(report.writtenFiles.count) 个文件"
+                }
+                cleanupCacheSilently()
             } catch {
-                await MainActor.run {
-                    isWorking = false
-                    lastMessage = "Unsplash 原图失败：\(error.localizedDescription)"
-                    NSAlert(error: error).runModal()
-                }
+                lastMessage = "应用失败：\(error.localizedDescription)"
             }
         }
     }
@@ -200,46 +249,40 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func applyThemeForSelectedOrLatest() {
-        guard let item = currentWallpaperCandidate() else {
-            lastMessage = "没有可用于生成主题的壁纸"
-            return
-        }
-        do {
-            let wallpaperURL = item.fullLocalURL ?? item.url
-            try SecurityScopedBookmarks.withAccess(for: wallpaperURL, folders: localFolders) {
-                let palettes = try PaletteGenerator.generate(from: wallpaperURL)
-                let report = try ThemeManager.apply(
-                    palettes: palettes,
-                    wallpaperURL: wallpaperURL,
-                    targets: settings.enabledThemeTargets,
-                    reloadTerminals: settings.reloadTerminalsAfterThemeChange
-                )
-                lastMessage = "已写入 \(report.writtenFiles.count) 个主题文件"
-            }
-        } catch {
-            lastMessage = "主题生成失败：\(error.localizedDescription)"
-            NSAlert(error: error).runModal()
-        }
-    }
+    func applyThemeForSelectedOrLatest() { generateTheme(copyOnly: false) }
 
-    func copyCodexThemeForSelectedOrLatest() {
-        guard let item = currentWallpaperCandidate() else {
-            lastMessage = "没有可用于生成 Codex 主题的壁纸"
+    func copyCodexThemeForSelectedOrLatest() { generateTheme(copyOnly: true) }
+
+    private func generateTheme(copyOnly: Bool) {
+        guard !isWorking, let item = currentWallpaper else { return }
+        guard copyOnly || !settings.enabledThemeTargets.isEmpty else {
+            lastMessage = "请先在设置中选择要同步的应用"
             return
         }
-        do {
-            let wallpaperURL = item.fullLocalURL ?? item.url
-            try SecurityScopedBookmarks.withAccess(for: wallpaperURL, folders: localFolders) {
-                let palettes = try PaletteGenerator.generate(from: wallpaperURL)
-                let importString = try ThemeManager.codexImportString(palettes: palettes)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(importString, forType: .string)
-                lastMessage = "已复制 Codex 主题导入字符串"
+        let options = settings
+        isWorking = true
+        lastMessage = "正在生成\(options.paletteStyle.title)配色…"
+        Task {
+            defer { isWorking = false }
+            do {
+                let url = try await resolveOriginal(item)
+                let pair = try await PaletteService.shared.generate(
+                    from: url, style: options.paletteStyle, folders: localFolders)
+                if copyOnly {
+                    let value = try ThemeManager.codexImportString(palettes: pair)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(value, forType: .string)
+                    lastMessage = "已复制 Codex App 主题"
+                } else {
+                    let report = try ThemeManager.apply(
+                        palettes: pair, wallpaperURL: url,
+                        targets: options.enabledThemeTargets,
+                        reloadTerminals: options.reloadTerminalsAfterThemeChange)
+                    lastMessage = "已应用\(options.paletteStyle.title)配色，共 \(report.writtenFiles.count) 个主题文件"
+                }
+            } catch {
+                lastMessage = "主题生成失败：\(error.localizedDescription)"
             }
-        } catch {
-            lastMessage = "Codex 主题复制失败：\(error.localizedDescription)"
-            NSAlert(error: error).runModal()
         }
     }
 
@@ -264,11 +307,13 @@ final class AppStore: ObservableObject {
     }
 
     func refreshUnsplashBatch() {
+        guard !isWorking else { return }
         isWorking = true
         lastMessage = "正在从 Unsplash 换一批精选..."
         Task {
             do {
-                let newItems = try await UnsplashService.fetchWallpaperBatch(accessKey: settings.unsplashAccessKey)
+                let newItems = try await UnsplashService.fetchWallpaperBatch(
+                    accessKey: settings.unsplashAccessKey)
                 await MainActor.run {
                     isWorking = false
                     settings.currentSource = .unsplash
@@ -287,8 +332,10 @@ final class AppStore: ObservableObject {
     }
 
     func pasteUnsplashAccessKey() {
-        guard let text = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !text.isEmpty
+        guard
+            let text = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(
+                in: .whitespacesAndNewlines),
+            !text.isEmpty
         else {
             lastMessage = "剪贴板里没有可用文本"
             return
@@ -299,14 +346,14 @@ final class AppStore: ObservableObject {
 
     private func pruneUnsupportedThemeTargets() {
         settings.enabledThemeTargets.formIntersection(ThemeTarget.supported)
-        if settings.enabledThemeTargets.isEmpty {
-            settings.enabledThemeTargets = Set(ThemeTarget.defaultEnabled)
-        }
     }
 
     private func currentWallpaperCandidate() -> WallpaperItem? {
         if let selectedWallpaperID,
-           let selected = (builtInWallpapers + localWallpapers + unsplashWallpapers + favorites).first(where: { $0.id == selectedWallpaperID }) {
+            let selected =
+                (builtInWallpapers + localWallpapers + unsplashWallpapers + favorites + history.map(\.item))
+                .first(where: { $0.id == selectedWallpaperID })
+        {
             return selected
         }
         return history.first?.item ?? visibleWallpapers.first ?? builtInWallpapers.first
@@ -347,7 +394,8 @@ final class AppStore: ObservableObject {
     }
 
     private func loadLocalFolders() -> [LocalFolderBookmark] {
-        let loaded = Persistence.load([LocalFolderBookmark].self, from: StorePaths.folderBookmarks, fallback: [])
+        let loaded = Persistence.load(
+            [LocalFolderBookmark].self, from: StorePaths.folderBookmarks, fallback: [])
         if !loaded.isEmpty {
             return loaded.map(SecurityScopedBookmarks.resolve)
         }
@@ -355,7 +403,8 @@ final class AppStore: ObservableObject {
         let legacyPaths = Persistence.load([String].self, from: StorePaths.folders, fallback: [])
         return legacyPaths.map { path in
             let url = URL(fileURLWithPath: path)
-            return LocalFolderBookmark(url: url, bookmarkData: SecurityScopedBookmarks.makeBookmark(for: url))
+            return LocalFolderBookmark(
+                url: url, bookmarkData: SecurityScopedBookmarks.makeBookmark(for: url))
         }
     }
 }
