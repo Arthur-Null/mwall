@@ -118,6 +118,17 @@ func productionStylesMatchReviewedPreview() throws {
     }
 }
 
+@Test func aetherDownsamplesImagesBeyondUpstreamLimits() throws {
+    // Exercise both the dimension limit and the 40-megapixel limit.
+    for (width, height) in [(16_385, 8), (6401, 6250)] {
+        let file = try paletteFixture(width: width, height: height)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pair = try PaletteGenerator.generate(from: file, style: .aether)
+        #expect(pair.dark.normal.count == 8 && pair.light.normal.count == 8)
+        #expect(pair.dark.background != pair.light.background)
+    }
+}
+
 @Test func aetherAcceptsNativeWallpaperFormats() throws {
     let fixture = try paletteFixture()
     defer { try? FileManager.default.removeItem(at: fixture) }
@@ -155,16 +166,16 @@ func productionStylesMatchReviewedPreview() throws {
     #expect(try await service.generate(from: file, style: .soft) != soft)
 }
 
-private func paletteFixture(invert: Bool = false) throws -> URL {
+private func paletteFixture(invert: Bool = false, width: Int = 64, height: Int = 48) throws -> URL {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(
         "mwall palette \(UUID().uuidString).png")
     let colors =
         invert ? [0x4f63c5, 0xc252a0, 0x49b38e, 0x17304b] : [0xa3442a, 0x79ab68, 0x2d88b1, 0xebc274]
-    var bytes = [UInt8](repeating: 255, count: 64 * 48 * 4)
-    for y in 0..<48 {
-        for x in 0..<64 {
-            let value = colors[x / 16]
-            let offset = (y * 64 + x) * 4
+    var bytes = [UInt8](repeating: 255, count: width * height * 4)
+    for y in 0..<height {
+        for x in 0..<width {
+            let value = colors[x * 4 / width]
+            let offset = (y * width + x) * 4
             bytes[offset] = UInt8((value >> 16) & 255)
             bytes[offset + 1] = UInt8((value >> 8) & 255)
             bytes[offset + 2] = UInt8(value & 255)
@@ -173,8 +184,8 @@ private func paletteFixture(invert: Bool = false) throws -> URL {
     try bytes.withUnsafeMutableBytes { raw in
         let context = try #require(
             CGContext(
-                data: raw.baseAddress, width: 64, height: 48, bitsPerComponent: 8,
-                bytesPerRow: 64 * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
                 bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue
                     | CGImageAlphaInfo.premultipliedLast.rawValue))
         let image = try #require(context.makeImage())

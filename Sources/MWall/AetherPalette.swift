@@ -17,7 +17,7 @@ enum AetherPalette {
     }
 
     // Upstream decodes JPEG, PNG, GIF and WebP. Import macOS-native formats as
-    // sRGB PNG without changing Aether's sampling, extraction or color roles.
+    // bounded sRGB PNG before Aether performs its own sampling and extraction.
     private static func compatibleImage(_ url: URL) throws -> URL {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
             let type = CGImageSourceGetType(source) as String?
@@ -25,8 +25,21 @@ enum AetherPalette {
         let passthrough = [
             UTType.jpeg.identifier, UTType.png.identifier, UTType.gif.identifier, "org.webmproject.webp",
         ]
-        if passthrough.contains(type) { return url }
-        guard let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let width = properties?[kCGImagePropertyPixelWidth] as? Int ?? 0
+        let height = properties?[kCGImagePropertyPixelHeight] as? Int ?? 0
+        // Match the pinned upstream decoder limits before passing through an original.
+        if passthrough.contains(type), width > 0, height > 0,
+            width <= 16_384, height <= 16_384, width * height <= 40_000_000
+        {
+            return url
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: min(4096, max(1, max(width, height))),
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary),
             let space = CGColorSpace(name: CGColorSpace.sRGB),
             let context = CGContext(
                 data: nil, width: image.width, height: image.height,

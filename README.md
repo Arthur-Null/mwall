@@ -48,7 +48,7 @@ MWALL_SANDBOX=1 tools/package_app.sh
 
 The menu bar panel has three pages: **壁纸** for browsing, **配色** for choosing a generation style and previewing code, and **设置** for app targets, automation, folders, and Unsplash.
 
-- **Aether** uses the upstream normal-mode generator at commit f0ae849966cc038a21808170b21e07772cb3619c, without MWall recoloring. HEIC and TIFF inputs are decoded by macOS into a temporary sRGB PNG because upstream does not decode those formats; JPEG, PNG, GIF and WebP inputs pass through unchanged.
+- **Aether** uses the upstream normal-mode generator at commit f0ae849966cc038a21808170b21e07772cb3619c, without MWall recoloring. HEIC and TIFF inputs are decoded by macOS into a temporary sRGB PNG because upstream does not decode those formats; JPEG, PNG, GIF and WebP inputs within upstream limits pass through unchanged. Native-format inputs and images exceeding the upstream 16,384-pixel dimension or 40-megapixel limit are imported at up to 4,096 pixels on the longest side, preserving aspect ratio.
 - **忠实壁纸** (default) retains several supported wallpaper hues and their chroma.
 - **柔和** uses the same extraction with 0.65x accent chroma.
 - **鲜艳** uses the same extraction with 1.35x accent chroma.
