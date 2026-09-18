@@ -4,7 +4,7 @@
 <style>
 :root{color-scheme:dark;--page:#171819;--ink:#e8e6df;--muted:#a5a59e;--line:#383a3b}
 *{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
-body.light{color-scheme:light;--page:#f5f4ef;--ink:#272924;--muted:#64695e;--line:#d5d7cf}
+a{color:inherit;text-underline-offset:3px}body.light{color-scheme:light;--page:#f5f4ef;--ink:#272924;--muted:#64695e;--line:#d5d7cf}
 main{max-width:1640px;margin:auto;padding:30px 40px 50px}header{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:20px}
 .eyebrow{font:11px/1.5 ui-monospace,monospace;letter-spacing:.14em;color:var(--muted)}h1{font-size:28px;letter-spacing:-.04em;margin:4px 0;font-weight:650}p{margin:0;color:var(--muted)}
 .controls{display:flex;flex-wrap:wrap;gap:10px}.seg{display:flex;border:1px solid var(--line);padding:3px;border-radius:7px;gap:2px}
@@ -21,7 +21,7 @@ button:focus-visible{outline:2px solid #ba965c;outline-offset:3px}
 .meta .explain{margin:14px 0 10px;max-width:520px}.swatches{display:flex;gap:4px;height:34px;margin:9px 0}
 .swatches i{min-width:5px;flex:1;border-radius:2px}.meta .key{font:11px ui-monospace,monospace;color:var(--muted);overflow-wrap:anywhere}
 .sectionhead{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.sectionhead h2{font-size:16px;margin:0}.sectionhead span{color:var(--muted);font-size:12px}
-.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.panel{min-width:0}
+.grid{display:grid;grid-template-columns:repeat(var(--columns,4),minmax(0,1fr));gap:16px}.panel{min-width:0}
 .panelhead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:0 0 2px}.panel h3{font-size:16px;margin:0}.tag{font-size:10px;letter-spacing:.08em;color:var(--muted)}
 .panel .desc{font-size:12px;min-height:40px;margin-bottom:12px}
 .editor{color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;overflow:hidden}
@@ -39,13 +39,13 @@ button:focus-visible{outline:2px solid #ba965c;outline-offset:3px}
 @media(max-width:700px){main{padding:20px 16px}header{align-items:start;flex-direction:column;gap:12px}h1{font-size:24px}.gallery{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.thumb img{height:55px}.hero{display:block}.wallpaper{height:auto;max-height:320px}.meta{margin-top:16px}.grid{grid-template-columns:1fr}.detail{grid-template-columns:1fr;gap:16px}.sectionhead{align-items:start;flex-direction:column;gap:2px}}
 </style>
 <main>
-<header><div><div class="eyebrow">MWALL / PALETTE STUDY / PROTOTYPE</div><h1>让配色留住壁纸的颜色</h1><p>同一张壁纸、同一段内容，比较四种生成方式。</p></div><div class="controls"><div class="seg" id="mode"><button data-mode="dark">深色</button><button data-mode="light">浅色</button></div><div class="seg" id="sample"><button data-sample="code">代码</button><button data-sample="terminal">终端</button><button data-sample="diff">Diff</button></div></div></header>
+<header><div><div class="eyebrow">MWALL / PALETTE STUDY / PROTOTYPE</div><h1>让配色留住壁纸的颜色</h1><p id="intro"></p></div><div class="controls"><div class="seg" id="mode"><button data-mode="dark">深色</button><button data-mode="light">浅色</button></div><div class="seg" id="sample"><button data-sample="code">代码</button><button data-sample="terminal">终端</button><button data-sample="diff">Diff</button></div></div></header>
 <nav class="gallery" id="gallery" aria-label="选择缓存壁纸"></nav>
-<section class="hero"><img id="wallpaper" class="wallpaper" alt=""><div class="meta"><div class="eyebrow" id="number"></div><h2 id="title"></h2><small id="credit"></small><p class="explain">先看图里的颜色，再看下面的语法高亮。新方案保留多个壁纸色相，柔和与鲜艳调整它们的彩度。</p><small>壁纸代表色 · 按像素占比排列</small><div class="swatches" id="swatches"></div><div class="key" id="filename"></div></div></section>
+<section class="hero"><img id="wallpaper" class="wallpaper" alt=""><div class="meta"><div class="eyebrow" id="number"></div><h2 id="title"></h2><small id="credit"></small><p class="explain">先看壁纸，再看同一段内容的配色。忠实、柔和、鲜艳是 MWall 的实验方案；柔和与鲜艳调整同一组取色的彩度。</p><small>壁纸代表色 · MWall 实验取色 · 按像素占比排列</small><div class="swatches" id="swatches"></div><div class="key" id="filename"></div></div></section>
 <div class="sectionhead"><h2 id="comparison-title">深色配色对照</h2><span>色条为完整 ANSI 16 色 · 悬停查看色值</span></div>
 <section class="grid" id="grid"></section>
-<section class="detail"><p><strong>如何比较</strong><br>森林与柠檬：是否还出现壁纸里没有的紫色？海岸与粉蓝天空：冷暖两组颜色是否都留下来？星空：能否保持低饱和气氛？也请切到浅色，检查文字是否清晰。</p><p><strong>这次预览的边界</strong><br>三个新方案是 MWall 的实验实现，并非 Aether / Noctalia 的原样输出。优先保留壁纸色相会弱化传统 ANSI 红绿语义；告警、成功与 diff 的最终映射仍需单独取舍。</p></section>
-<p class="foot" id="foot"></p>
+<section class="detail"><p><strong>如何比较</strong><br>森林与柠檬：是否还出现壁纸里没有的紫色？海岸与粉蓝天空：冷暖两组颜色是否都留下来？星空：能否保持低饱和气氛？也请切到浅色，检查文字是否清晰。</p><p><strong>这次预览的边界</strong><br><span id="boundary"></span>优先保留壁纸色相会弱化传统 ANSI 红绿语义；告警、成功与 diff 的最终映射仍需单独取舍。所有方案使用同一套示例高亮映射。</p></section>
+<p class="foot" id="provenance"></p><p class="foot" id="foot"></p>
 </main>
 <script id="data" type="application/json">__PALETTE_DATA__</script>
 <script>
@@ -55,7 +55,7 @@ let imageID=images.some(x=>x.id===params.get('image'))?params.get('image'):(imag
 let mode=params.get('mode')==='light'?'light':'dark';
 let sample=['code','terminal','diff'].includes(params.get('sample'))?params.get('sample'):'code';
 const shortNames={aaIN3y2zcMQ:'粉蓝天空',G85VuTpw6jg:'森林',OJ74pFtrYi0:'海岸',UdURxHDhrgY:'低饱和星空',Fr6zexbmjmc:'暖色城市',c8TWWQ5ZnUw:'柠檬',qH36EgNjPJY:'绿地与海',yeq7XzeJaiM:'夜色与灯光'};
-const variants={current:['当前算法','BASELINE','单一种子色 + 固定 ANSI 色相'],faithful:['忠实壁纸','FAITHFUL','保留多个壁纸色相与原有彩度'],soft:['柔和','SOFT','相同取色，彩度降低 35%'],vivid:['鲜艳','VIVID','相同取色，彩度提高 35%']};
+const variants={current:['当前算法','BASELINE','单一种子色 + 固定 ANSI 色相'],aether:['Aether 原版','NORMAL','官方 CLI 配色 · 未作二次调色'],faithful:['忠实壁纸','FAITHFUL','保留多个壁纸色相与原有彩度'],soft:['柔和','SOFT','相同取色，彩度降低 35%'],vivid:['鲜艳','VIVID','相同取色，彩度提高 35%']};
 const hex=c=>'#'+[c.r,c.g,c.b].map(x=>x.toString(16).padStart(2,'0')).join('');
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function luminance(c){const f=x=>{x/=255;return x<=.04045?x/12.92:((x+.055)/1.055)**2.4};return .2126*f(c.r)+.7152*f(c.g)+.0722*f(c.b)}
@@ -69,6 +69,11 @@ function render(){
  document.querySelectorAll('[data-sample]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.sample===sample));
  document.getElementById('gallery').innerHTML=images.map((x,i)=>'<button class="thumb" data-image="'+escape(x.id)+'" aria-label="'+escape(shortNames[x.id]||x.id)+'" aria-pressed="'+(x.id===imageID)+'"><img src="'+x.image+'" alt=""><span>'+String(i+1).padStart(2,'0')+' · '+escape(shortNames[x.id]||x.id)+'</span></button>').join('');
  const x=images.find(x=>x.id===imageID);
+ const upstream=x.variants.find(v=>v.id==='aether')?.provenance;
+ document.getElementById('intro').textContent='同一张壁纸、同一段内容，比较 '+x.variants.length+' 种生成方式。';
+ document.getElementById('grid').style.setProperty('--columns',x.variants.length);
+ document.getElementById('boundary').textContent=upstream?'Aether 一栏使用官方 CLI 原样生成的深浅色。其余三个新方案是 MWall 实验实现，并非 Noctalia 原版。':'三个新方案是 MWall 的实验实现，并非 Aether / Noctalia 原版。';
+ document.getElementById('provenance').innerHTML=upstream?'Aether · <a href="'+escape(upstream.repository+'/tree/'+upstream.commit)+'" target="_blank" rel="noreferrer">'+escape(upstream.commit.slice(0,12))+'</a> · normal · 原图 SHA-256 已核对 · ANSI 与角色色值原样导入':'';
  document.getElementById('wallpaper').src=x.image;
  document.getElementById('wallpaper').alt=x.title;
  document.getElementById('title').textContent=shortNames[x.id]||x.title;
@@ -78,14 +83,14 @@ function render(){
  document.getElementById('swatches').innerHTML=x.swatches.map(s=>'<i style="background:'+s.hex+';flex:'+s.share+'" title="'+s.hex+' · '+(s.share*100).toFixed(1)+'%"></i>').join('');
  document.getElementById('comparison-title').textContent=(mode==='dark'?'深色':'浅色')+'配色对照';
  document.getElementById('grid').innerHTML=x.variants.map(v=>{
-  const p=v.palettes[mode], info=variants[v.id];
-  const vars={bg:p.background,fg:p.foreground,accent:p.cursor,dim:p.bright[0],red:p.normal[1],green:p.normal[2],yellow:p.normal[3],blue:p.normal[4],purple:p.normal[5],cyan:p.normal[6],sel:p.selectionBackground,selfg:p.selectionForeground};
+  const p=v.palettes[mode], info=variants[v.id], accent=v.accents?.[mode]||p.cursor;
+  const vars={bg:p.background,fg:p.foreground,accent:accent,dim:p.bright[0],red:p.normal[1],green:p.normal[2],yellow:p.normal[3],blue:p.normal[4],purple:p.normal[5],cyan:p.normal[6],sel:p.selectionBackground,selfg:p.selectionForeground};
   const css=Object.entries(vars).map(([key,value])=>'--'+key+':'+hex(value)).join(';');
   const body=({code,terminal,diff})[sample].replace('{{MODE}}',mode);
   const textRatio=ratio(p.foreground,p.background),syntaxRatio=Math.min(...p.normal.slice(1,7).map(c=>ratio(c,p.background)));
-  return '<article class="panel" data-variant="'+v.id+'"><div class="panelhead"><h3>'+info[0]+'</h3><span class="tag">'+info[1]+'</span></div><p class="desc">'+info[2]+'</p><div class="editor" style="'+css+'"><div class="titlebar"><span>'+(sample==='code'?'theme.ts':sample==='diff'?'theme.diff':'terminal')+'</span><span>'+mode+'</span></div><div class="sample">'+body+'</div><div class="terminalbar">MWALL · '+hex(p.cursor).toUpperCase()+'</div></div><div class="ansi">'+[...p.normal,...p.bright].map((c,i)=>'<i style="background:'+hex(c)+'" title="color'+i+' '+hex(c).toUpperCase()+'"></i>').join('')+'</div><div class="ratios"><span>正文 '+textRatio.toFixed(1)+':1</span><span class="'+(syntaxRatio<4.5?'low':'')+'">高亮最低 '+syntaxRatio.toFixed(1)+':1</span></div></article>';
+  return '<article class="panel" data-variant="'+v.id+'"><div class="panelhead"><h3>'+info[0]+'</h3><span class="tag">'+info[1]+'</span></div><p class="desc">'+info[2]+'</p><div class="editor" style="'+css+'"><div class="titlebar"><span>'+(sample==='code'?'theme.ts':sample==='diff'?'theme.diff':'terminal')+'</span><span>'+mode+'</span></div><div class="sample">'+body+'</div><div class="terminalbar">'+ (v.id==='aether'?'AETHER':'MWALL')+' · '+hex(accent).toUpperCase()+'</div></div><div class="ansi">'+[...p.normal,...p.bright].map((c,i)=>'<i style="background:'+hex(c)+'" title="color'+i+' '+hex(c).toUpperCase()+'"></i>').join('')+'</div><div class="ratios"><span>正文 '+textRatio.toFixed(1)+':1</span><span class="'+(syntaxRatio<4.5?'low':'')+'">高亮最低 '+syntaxRatio.toFixed(1)+':1</span></div></article>';
  }).join('');
- document.getElementById('foot').textContent=images.length+' 张缓存原图 × 4 种方案 × 深浅两套 = '+images.length*8+' 组配色。仅供比较，不会修改正在使用的主题。';
+ document.getElementById('foot').textContent=images.length+' 张缓存原图 × '+x.variants.length+' 种方案 × 深浅两套 = '+images.reduce((n,item)=>n+item.variants.length*2,0)+' 组配色。仅供比较，不会修改正在使用的主题。';
  params.set('image',imageID);params.set('mode',mode);params.set('sample',sample);
  history.replaceState(null,'','?'+params);
 }
