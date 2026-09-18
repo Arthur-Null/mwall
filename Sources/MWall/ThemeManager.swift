@@ -32,6 +32,8 @@ enum ThemeManager {
         case .ghostty: writeGhostty
         case .neovim: writeNeovim
         case .starship: writeStarship
+        case .pi: { try AgentThemeWriter.writePi($0, $1) }
+        case .codexCLI: { try AgentThemeWriter.writeCodexCLI($0, $1) }
         case .alacritty, .wezterm, .iterm2, .terminal:
             { _, _ in [] }
         }

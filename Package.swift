@@ -19,7 +19,7 @@ let package = Package(
             name: "MWallTests",
             dependencies: ["MWall"],
             path: "Tests/MWallTests",
-            exclude: ["neovim_reload.lua"]
+            exclude: ["neovim_reload.lua", "pi_theme_reload.mjs"]
         )
     ]
 )

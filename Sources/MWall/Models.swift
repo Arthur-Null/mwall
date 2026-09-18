@@ -89,12 +89,14 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
     case ghostty
     case neovim
     case starship
+    case pi
+    case codexCLI = "codex-cli"
     case iterm2
     case terminal
 
     var id: String { rawValue }
 
-    static let allCases: [ThemeTarget] = [.kitty, .ghostty, .neovim, .starship]
+    static let allCases: [ThemeTarget] = [.kitty, .ghostty, .neovim, .starship, .pi, .codexCLI]
 
     var displayName: String {
         switch self {
@@ -102,6 +104,8 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
         case .ghostty: "Ghostty"
         case .neovim: "Neovim"
         case .starship: "Starship"
+        case .pi: "Pi"
+        case .codexCLI: "Codex CLI"
         case .alacritty: "Alacritty"
         case .wezterm: "WezTerm"
         case .iterm2: "iTerm2"
@@ -110,7 +114,7 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
     }
 
     static let supported: Set<ThemeTarget> = Set(allCases)
-    static let defaultEnabled: [ThemeTarget] = [.kitty, .ghostty, .neovim, .starship]
+    static let defaultEnabled: [ThemeTarget] = [.kitty, .ghostty, .neovim, .starship, .pi, .codexCLI]
 }
 
 enum StorePaths {

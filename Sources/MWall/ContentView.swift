@@ -110,7 +110,7 @@ struct ContentView: View {
                 Button {
                     store.copyCodexThemeForSelectedOrLatest()
                 } label: {
-                    Label("复制 Codex", systemImage: "doc.on.doc")
+                    Label("复制 Codex App", systemImage: "doc.on.doc")
                 }
                 Button {
                     store.applyThemeForSelectedOrLatest()
@@ -129,6 +129,13 @@ struct ContentView: View {
                     .font(.caption)
                 }
                 Spacer()
+            }
+
+            if store.settings.enabledThemeTargets.contains(.pi) || store.settings.enabledThemeTargets.contains(.codexCLI) {
+                Text("首次生成后：Pi 在 /settings 选择 mwall；Codex CLI 在 /theme 选择 mwall。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             DisclosureGroup {

@@ -40,6 +40,7 @@ MWALL_SANDBOX=1 tools/package_app.sh
 - Terminal theme output for Kitty, Alacritty, WezTerm, Ghostty, iTerm2, and Terminal.app helper script.
 - Best-effort terminal reload hooks for Kitty, WezTerm, iTerm2 import, and Terminal.app.
 - Neovim colorschemes with live updates for open editors, including AstroNvim and LazyVim.
+- Pi themes with native live updates, plus Codex CLI syntax-highlighting themes.
 - Launch at Login toggle when running as `MWall.app`.
 
 ## Unsplash
@@ -62,6 +63,8 @@ Unsplash API JSON requests are rate-limited by Unsplash, while image file reques
 - Terminal.app helper: `~/Library/Application Support/MWall/Apply-MWall-Terminal.applescript`, plus dark/light variants
 - Neovim: `~/.config/nvim/colors/mwall.lua`, `mwall-dark.lua`, `mwall-light.lua`
 - Neovim live reload: `~/.config/nvim/plugin/mwall-reload.lua`
+- Pi: `~/.pi/agent/themes/mwall.json`, `mwall-dark.json`, `mwall-light.json`
+- Codex CLI: `~/.codex/themes/mwall.tmTheme`, `mwall-dark.tmTheme`, `mwall-light.tmTheme`
 
 Most terminals need their main config to import the generated theme file, or a manual import in the app UI.
 
@@ -137,3 +140,39 @@ Live updates preserve whichever variant is active. They do not depend on the ter
 ### Verification
 
 Run `swift test` with Neovim installed (or set `NVIM_BIN` to its executable). The integration test uses isolated temporary configs and a single running Neovim to verify all three generated schemes, atomic replacements, unchanged files, highlight overrides, unsaved buffers, invalid-file recovery, and opt-out behavior. It does not change your editor configuration.
+
+## Pi and Codex CLI
+
+Enable **Pi** and/or **Codex CLI** in MWall, then click **生成主题** or apply a wallpaper with theme generation enabled. Existing saved target selections are preserved, so existing installations must enable the new targets once. New settings include both targets by default.
+
+Both exporters write `mwall`, `mwall-dark`, and `mwall-light`. The `mwall` variant uses macOS appearance when generated. Unchanged theme content is left untouched. MWall does not edit either application's settings or automatically select a theme.
+
+### Pi
+
+In Pi's `/settings`, select `mwall` once. Pi's native file watcher then reloads regenerated themes in running sessions, including atomic replacements, without a restart or manual reload. Interface accents, message/tool panels, Markdown, syntax highlighting, and diff colors share the wallpaper palette. The base terminal background continues to come from the terminal; enable MWall's matching terminal output as well.
+
+To follow the terminal's light/dark appearance, select the pair in Pi settings or start with:
+
+```sh
+pi --use-theme mwall-light/mwall-dark
+```
+
+Pi detects the terminal's appearance; this is not a macOS theme scheduler. Both palette variants are refreshed whenever MWall generates themes.
+
+### Codex CLI
+
+In Codex CLI, run `/theme` and select `mwall`, `mwall-dark`, or `mwall-light`. The selection is saved as `tui.theme`. These TextMate themes apply to syntax highlighting in code blocks and diffs. They are separate from the desktop application's **复制 Codex App** import string and do not customize every TUI element.
+
+Codex CLI 0.154.0 was verified to load and preview these generated themes, but it caches loaded themes: after externally replacing a theme file, reopening `/theme` still showed the previous palette. Start a new Codex CLI session to reliably pick up regenerated colors. `/theme` can switch the available variants without restarting; automatic file reload and Pi-style light/dark pairing are not provided by this exporter.
+
+### Custom locations and validation
+
+The exporters honor `PI_CODING_AGENT_DIR` and `CODEX_HOME` when these environment variables are present in the MWall process. A Finder-launched app does not normally inherit shell-only variables; otherwise the default paths above are used.
+
+`swift test` checks serialization, palette mapping, preserved settings, directory overrides, and unchanged-file handling. To additionally exercise the installed Pi theme loader and watcher, set `PI_PACKAGE_DIR` to the root of an installed `@earendil-works/pi-coding-agent` package:
+
+```sh
+PI_PACKAGE_DIR="$(npm root -g)/@earendil-works/pi-coding-agent" swift test
+```
+
+The Pi integration test uses temporary themes and does not change running user sessions. It covers all three variants, repeated atomic replacements, invalid-file recovery, and light/dark pair resolution. Reference interfaces: [Pi themes](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/themes.md) and [Codex CLI customization](https://developers.openai.com/zh-Hans/docs/cli-customization).
