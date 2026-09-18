@@ -118,6 +118,27 @@ func productionStylesMatchReviewedPreview() throws {
     }
 }
 
+@Test func aetherAcceptsNativeWallpaperFormats() throws {
+    let fixture = try paletteFixture()
+    defer { try? FileManager.default.removeItem(at: fixture) }
+    let source = try #require(CGImageSourceCreateWithURL(fixture as CFURL, nil))
+    let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+    for type in [UTType.heic, UTType.tiff] {
+        let file = fixture.deletingPathExtension().appendingPathExtension(type.preferredFilenameExtension!)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let destination = try #require(
+            CGImageDestinationCreateWithURL(file as CFURL, type.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, nil)
+        #expect(CGImageDestinationFinalize(destination))
+        let pair = try PaletteGenerator.generate(from: file, style: .aether)
+        for palette in [pair.dark, pair.light] {
+            #expect(palette.normal.count == 8 && palette.bright.count == 8)
+            #expect(palette.accent == palette.normal[4])
+        }
+        #expect(pair.dark.background != pair.light.background)
+    }
+}
+
 @Test func paletteServiceSeparatesStylesAndInvalidatesChangedFiles() async throws {
     let file = try paletteFixture()
     defer { try? FileManager.default.removeItem(at: file) }

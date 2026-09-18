@@ -1,14 +1,52 @@
+import CoreGraphics
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 enum AetherPalette {
     static let revision = "f0ae849966cc038a21808170b21e07772cb3619c"
 
     static func generate(from url: URL, executable: URL? = nil) throws -> TerminalPalettePair {
         let binary = try executable ?? locateExecutable()
+        let image = try compatibleImage(url)
+        defer { if image != url { try? FileManager.default.removeItem(at: image) } }
         return try TerminalPalettePair(
-            dark: extract(url, light: false, executable: binary),
-            light: extract(url, light: true, executable: binary)
+            dark: extract(image, light: false, executable: binary),
+            light: extract(image, light: true, executable: binary)
         )
+    }
+
+    // Upstream decodes JPEG, PNG, GIF and WebP. Import macOS-native formats as
+    // sRGB PNG without changing Aether's sampling, extraction or color roles.
+    private static func compatibleImage(_ url: URL) throws -> URL {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+            let type = CGImageSourceGetType(source) as String?
+        else { throw failure("无法读取这张壁纸。") }
+        let passthrough = [
+            UTType.jpeg.identifier, UTType.png.identifier, UTType.gif.identifier, "org.webmproject.webp",
+        ]
+        if passthrough.contains(type) { return url }
+        guard let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let space = CGColorSpace(name: CGColorSpace.sRGB),
+            let context = CGContext(
+                data: nil, width: image.width, height: image.height,
+                bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { throw failure("无法解码这张壁纸。") }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let converted = context.makeImage() else { throw failure("无法转换这张壁纸。") }
+        let temporary = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mwall-aether-\(UUID().uuidString).png")
+        var complete = false
+        defer { if !complete { try? FileManager.default.removeItem(at: temporary) } }
+        guard
+            let destination = CGImageDestinationCreateWithURL(
+                temporary as CFURL, UTType.png.identifier as CFString, 1, nil)
+        else { throw failure("无法创建临时壁纸。") }
+        CGImageDestinationAddImage(destination, converted, nil)
+        guard CGImageDestinationFinalize(destination) else { throw failure("无法转换这张壁纸。") }
+        complete = true
+        return temporary
     }
 
     private static func locateExecutable() throws -> URL {
