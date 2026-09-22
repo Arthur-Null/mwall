@@ -13,6 +13,8 @@ The app runs as a menu bar utility and hides its Dock icon.
 
 When "all desktops" is enabled, MWall updates the macOS wallpaper store so hidden Spaces pick up the same image, then refreshes visible displays through `NSWorkspace`. Older macOS versions may fall back to System Events and ask for automation permission.
 
+Applied wallpapers are copied to `~/Library/Application Support/MWall/Applied/` before being written into the system wallpaper index. That keeps System Settings previews working and protects the live desktop image from Unsplash cache cleanup.
+
 ## Build an App Bundle
 
 ```sh

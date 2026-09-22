@@ -39,3 +39,11 @@ _Avoid_: 当前桌面, 当前显示器, 只刷新 NSWorkspace screen
 **壁纸 Configuration**:
 `Index.plist` 中 `Desktop.Content.Choices[0].Configuration` 是二进制 plist。当前 macOS 认可的图片结构是 `type = imageFile` 和 `url.relative = file:///...`；不要写旧的扁平 `relative` 字段。
 _Avoid_: relative = file:///..., 自造配置结构
+
+**壁纸 Files**:
+`Index.plist` 中 `Desktop.Content.Choices[0].Files` 是系统设置墙纸页预览依赖的文件引用数组。图片墙纸应写成 `[{ relative = file:///... }]`，并与 Configuration 指向同一路径。写成空数组时，桌面仍可能靠 Configuration 显示，但设置页会显示黑底缺失占位。
+_Avoid_: Files = [], 只写 Configuration
+
+**已应用壁纸副本**:
+应用桌面时拷贝到 `~/Library/Application Support/MWall/Applied/current.<ext>` 的稳定副本。系统设置与桌面引用都应指向这里，而不是 Unsplash 的 Caches 原图，避免缓存清理后预览再次缺失。
+_Avoid_: 直接把 Caches/Unsplash/Full 路径写入 Index.plist

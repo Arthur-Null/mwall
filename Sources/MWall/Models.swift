@@ -161,6 +161,12 @@ enum StorePaths {
         appSupport.appendingPathComponent("BuiltIns", isDirectory: true)
     }
 
+    /// Stable copy of the wallpaper currently applied to the desktop.
+    /// Keeps System Settings previews and desktop references out of Caches.
+    static var applied: URL {
+        appSupport.appendingPathComponent("Applied", isDirectory: true)
+    }
+
     static var unsplash: URL {
         cache.appendingPathComponent("Unsplash", isDirectory: true)
     }

@@ -205,19 +205,19 @@ final class AppStore: ObservableObject {
             defer { isWorking = false }
             do {
                 let url = try await resolveOriginal(item)
-                try SecurityScopedBookmarks.withAccess(for: url, folders: localFolders) {
+                let appliedURL = try SecurityScopedBookmarks.withAccess(for: url, folders: localFolders) {
                     try WallpaperService.setDesktopImage(url, allScreens: options.applyToAllScreens)
                 }
                 selectedWallpaperID = item.id
                 var applied = item
-                applied.fullLocalURL = url
+                applied.fullLocalURL = appliedURL
                 addHistory(applied)
                 lastMessage = "已应用壁纸"
                 if options.applyThemeAfterWallpaperChange && !options.enabledThemeTargets.isEmpty {
                     let palettes = try await PaletteService.shared.generate(
-                        from: url, style: options.paletteStyle, folders: localFolders)
+                        from: appliedURL, style: options.paletteStyle, folders: localFolders)
                     let report = try ThemeManager.apply(
-                        palettes: palettes, wallpaperURL: url,
+                        palettes: palettes, wallpaperURL: appliedURL,
                         targets: options.enabledThemeTargets,
                         reloadTerminals: options.reloadTerminalsAfterThemeChange)
                     lastMessage = "已应用壁纸与\(options.paletteStyle.title)主题，共 \(report.writtenFiles.count) 个文件"
