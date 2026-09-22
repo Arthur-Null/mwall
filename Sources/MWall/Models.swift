@@ -161,6 +161,13 @@ enum StorePaths {
         appSupport.appendingPathComponent("BuiltIns", isDirectory: true)
     }
 
+    /// Durable copies of applied wallpapers (unique `current-<uuid>.<ext>` per apply).
+    /// Keeps System Settings previews and desktop references out of Caches, and forces a
+    /// path change so macOS refreshes the desktop image.
+    static var applied: URL {
+        appSupport.appendingPathComponent("Applied", isDirectory: true)
+    }
+
     static var unsplash: URL {
         cache.appendingPathComponent("Unsplash", isDirectory: true)
     }

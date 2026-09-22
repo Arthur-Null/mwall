@@ -25,7 +25,7 @@ enum WallpaperStore {
         }
 
         let configuration = try imageConfigurationData(for: imageURL)
-        let updatedCount = updateDesktopNodes(in: root, configuration: configuration)
+        let updatedCount = updateDesktopNodes(in: root, imageURL: imageURL, configuration: configuration)
         guard updatedCount > 0 else {
             throw NSError(domain: "MWall.WallpaperStore", code: 2, userInfo: [NSLocalizedDescriptionKey: "没有找到可更新的桌面配置"])
         }
@@ -39,29 +39,32 @@ enum WallpaperStore {
         return updatedCount
     }
 
-    private static func updateDesktopNodes(in value: Any, configuration: Data) -> Int {
+    private static func updateDesktopNodes(in value: Any, imageURL: URL, configuration: Data) -> Int {
         var count = 0
         if let dictionary = value as? NSMutableDictionary {
             if let desktop = dictionary["Desktop"] as? NSMutableDictionary {
-                updateDesktop(desktop, configuration: configuration)
+                updateDesktop(desktop, imageURL: imageURL, configuration: configuration)
                 count += 1
             }
             for nestedValue in dictionary.allValues {
-                count += updateDesktopNodes(in: nestedValue, configuration: configuration)
+                count += updateDesktopNodes(in: nestedValue, imageURL: imageURL, configuration: configuration)
             }
         } else if let array = value as? NSMutableArray {
             for nestedValue in array {
-                count += updateDesktopNodes(in: nestedValue, configuration: configuration)
+                count += updateDesktopNodes(in: nestedValue, imageURL: imageURL, configuration: configuration)
             }
         }
         return count
     }
 
-    private static func updateDesktop(_ desktop: NSMutableDictionary, configuration: Data) {
+    private static func updateDesktop(_ desktop: NSMutableDictionary, imageURL: URL, configuration: Data) {
         let content = desktop["Content"] as? NSMutableDictionary ?? NSMutableDictionary()
         let choices = content["Choices"] as? NSMutableArray ?? NSMutableArray()
         let choice = (choices.firstObject as? NSMutableDictionary) ?? NSMutableDictionary()
         choice["Configuration"] = configuration
+        // Keep Files empty. Writing `[{ relative = file:///... }]` matches older docs but on
+        // current macOS it prevents WallpaperAgent from opening the image, so the desktop
+        // path updates while the pixels stay stuck / Settings shows a missing preview.
         choice["Files"] = NSMutableArray()
         choice["Provider"] = "com.apple.wallpaper.choice.image"
         if choices.count == 0 {

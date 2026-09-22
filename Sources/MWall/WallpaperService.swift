@@ -5,15 +5,64 @@ import Foundation
 enum WallpaperService {
     static let supportedExtensions: Set<String> = ["jpg", "jpeg", "png", "heic", "tiff", "tif", "webp"]
 
-    static func setDesktopImage(_ url: URL, allScreens: Bool) throws {
+    /// Installs a durable copy under Application Support, then applies it to the desktop.
+    /// Returns the stable file URL actually used by the desktop / wallpaper store.
+    @discardableResult
+    static func setDesktopImage(_ url: URL, allScreens: Bool) throws -> URL {
+        let appliedURL = try installAppliedWallpaper(url)
         if allScreens {
-            try setScreenImages(url, screens: NSScreen.screens)
-            try setEveryDesktopImage(url)
+            try setScreenImages(appliedURL, screens: NSScreen.screens)
+            try setEveryDesktopImage(appliedURL)
             restartWallpaperAgent()
-            return
+            return appliedURL
         }
 
-        try setScreenImages(url, screens: [NSScreen.main].compactMap { $0 })
+        try setScreenImages(appliedURL, screens: [NSScreen.main].compactMap { $0 })
+        return appliedURL
+    }
+
+    /// Copies `sourceURL` into `directory` (default: `StorePaths.applied`) so Unsplash cache
+    /// cleanup cannot delete the live desktop image, and System Settings can keep a resolvable
+    /// Files reference.
+    ///
+    /// Each apply uses a unique `current-<uuid>.<ext>` name. Replacing the same `current.jpg`
+    /// path in place leaves `NSWorkspace` / WallpaperAgent on an unchanged URL, so the desktop
+    /// does not refresh even though file bytes changed.
+    static func installAppliedWallpaper(
+        _ sourceURL: URL,
+        into directory: URL = StorePaths.applied
+    ) throws -> URL {
+        let fm = FileManager.default
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let ext = sourceURL.pathExtension.isEmpty ? "jpg" : sourceURL.pathExtension.lowercased()
+        let destination = directory.appendingPathComponent("current-\(UUID().uuidString).\(ext)")
+        if sourceURL.standardizedFileURL == destination.standardizedFileURL {
+            return destination
+        }
+
+        guard fm.fileExists(atPath: sourceURL.path) else {
+            throw NSError(
+                domain: "MWall.Wallpaper",
+                code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "找不到壁纸文件：\(sourceURL.path)"]
+            )
+        }
+
+        try fm.copyItem(at: sourceURL, to: destination)
+
+        let keepName = destination.lastPathComponent
+        if let leftovers = try? fm.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) {
+            for url in leftovers where url.lastPathComponent != keepName {
+                try? fm.removeItem(at: url)
+            }
+        }
+
+        return destination
     }
 
     private static func setScreenImages(_ url: URL, screens: [NSScreen]) throws {

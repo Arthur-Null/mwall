@@ -39,3 +39,11 @@ _Avoid_: 当前桌面, 当前显示器, 只刷新 NSWorkspace screen
 **壁纸 Configuration**:
 `Index.plist` 中 `Desktop.Content.Choices[0].Configuration` 是二进制 plist。当前 macOS 认可的图片结构是 `type = imageFile` 和 `url.relative = file:///...`；不要写旧的扁平 `relative` 字段。
 _Avoid_: relative = file:///..., 自造配置结构
+
+**壁纸 Files**:
+`Index.plist` 中 `Desktop.Content.Choices[0].Files` 在部分旧文档里写成 `[{ relative = file:///... }]`。当前 macOS 上这样写会导致 WallpaperAgent 不打开图片文件（桌面路径已变但画面不换）。MWall 保持 `Files = []`，只写 Configuration。系统设置墙纸页因此可能对第三方路径显示黑底缺失占位，这是已知取舍。
+_Avoid_: 自造 Files = [{ relative = ... }]
+
+**已应用壁纸副本**:
+应用桌面时拷贝到 `~/Library/Application Support/MWall/Applied/current-<uuid>.<ext>`。必须每次换新文件名：若反复覆盖同一个 `current.jpg`，`NSWorkspace` / WallpaperAgent 会认为 URL 未变而不刷新桌面。桌面引用应指向这份副本，而不是 Unsplash 的 Caches 原图。
+_Avoid_: 固定 current.jpg 原地覆盖, 直接把 Caches/Unsplash/Full 路径写入 Index.plist

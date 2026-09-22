@@ -7,6 +7,7 @@ enum Persistence {
             StorePaths.appSupport,
             StorePaths.cache,
             StorePaths.builtIns,
+            StorePaths.applied,
             StorePaths.unsplash,
             StorePaths.unsplashPreviews,
             StorePaths.unsplashFull
