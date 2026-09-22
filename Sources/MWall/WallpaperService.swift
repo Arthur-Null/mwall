@@ -24,6 +24,10 @@ enum WallpaperService {
     /// Copies `sourceURL` into `directory` (default: `StorePaths.applied`) so Unsplash cache
     /// cleanup cannot delete the live desktop image, and System Settings can keep a resolvable
     /// Files reference.
+    ///
+    /// Each apply uses a unique `current-<uuid>.<ext>` name. Replacing the same `current.jpg`
+    /// path in place leaves `NSWorkspace` / WallpaperAgent on an unchanged URL, so the desktop
+    /// does not refresh even though file bytes changed.
     static func installAppliedWallpaper(
         _ sourceURL: URL,
         into directory: URL = StorePaths.applied
@@ -32,7 +36,7 @@ enum WallpaperService {
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let ext = sourceURL.pathExtension.isEmpty ? "jpg" : sourceURL.pathExtension.lowercased()
-        let destination = directory.appendingPathComponent("current.\(ext)")
+        let destination = directory.appendingPathComponent("current-\(UUID().uuidString).\(ext)")
         if sourceURL.standardizedFileURL == destination.standardizedFileURL {
             return destination
         }
@@ -45,14 +49,7 @@ enum WallpaperService {
             )
         }
 
-        let temporaryURL = directory
-            .appendingPathComponent(".current-\(UUID().uuidString).\(ext)")
-        try fm.copyItem(at: sourceURL, to: temporaryURL)
-        if fm.fileExists(atPath: destination.path) {
-            _ = try fm.replaceItemAt(destination, withItemAt: temporaryURL)
-        } else {
-            try fm.moveItem(at: temporaryURL, to: destination)
-        }
+        try fm.copyItem(at: sourceURL, to: destination)
 
         let keepName = destination.lastPathComponent
         if let leftovers = try? fm.contentsOfDirectory(

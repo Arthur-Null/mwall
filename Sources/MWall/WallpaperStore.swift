@@ -62,10 +62,10 @@ enum WallpaperStore {
         let choices = content["Choices"] as? NSMutableArray ?? NSMutableArray()
         let choice = (choices.firstObject as? NSMutableDictionary) ?? NSMutableDictionary()
         choice["Configuration"] = configuration
-        // System Settings wallpaper preview reads Files; an empty array shows a missing placeholder.
-        choice["Files"] = NSMutableArray(array: [
-            ["relative": imageURL.absoluteString]
-        ])
+        // Keep Files empty. Writing `[{ relative = file:///... }]` matches older docs but on
+        // current macOS it prevents WallpaperAgent from opening the image, so the desktop
+        // path updates while the pixels stay stuck / Settings shows a missing preview.
+        choice["Files"] = NSMutableArray()
         choice["Provider"] = "com.apple.wallpaper.choice.image"
         if choices.count == 0 {
             choices.add(choice)

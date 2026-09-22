@@ -161,8 +161,9 @@ enum StorePaths {
         appSupport.appendingPathComponent("BuiltIns", isDirectory: true)
     }
 
-    /// Stable copy of the wallpaper currently applied to the desktop.
-    /// Keeps System Settings previews and desktop references out of Caches.
+    /// Durable copies of applied wallpapers (unique `current-<uuid>.<ext>` per apply).
+    /// Keeps System Settings previews and desktop references out of Caches, and forces a
+    /// path change so macOS refreshes the desktop image.
     static var applied: URL {
         appSupport.appendingPathComponent("Applied", isDirectory: true)
     }
