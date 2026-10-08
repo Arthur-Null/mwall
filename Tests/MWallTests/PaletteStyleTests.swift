@@ -46,6 +46,14 @@ import UniformTypeIdentifiers
     }
     #expect(results[0] != results[1] && results[1] != results[2] && results[0] != results[2])
     #expect(try PaletteGenerator.generate(from: file) == results[0])
+
+    let faithfulLight = OKColor(results[0].light.background)
+    let softLight = OKColor(results[1].light.background)
+    let vividLight = OKColor(results[2].light.background)
+    #expect(softLight.chroma <= faithfulLight.chroma + 0.0001)
+    #expect(faithfulLight.chroma <= vividLight.chroma + 0.0001)
+    #expect(softLight.chroma <= 0.010)
+    #expect(faithfulLight.chroma <= 0.014)
 }
 
 @Test func aetherEngineRunsForAnImageWithoutChangingRoles() throws {

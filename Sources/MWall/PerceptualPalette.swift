@@ -228,7 +228,23 @@ enum PerceptualPalette {
         let tail = max(1, sorted.count / 4)
         let backdropPool = dark ? Array(sorted.prefix(tail)) : Array(sorted.suffix(tail))
         let backdrop = backdropPool.max { $0.count < $1.count }!.lab
-        let bgChroma = min(style == .soft ? 0.018 : 0.030, backdrop.chroma * 0.65)
+        // Surface chroma: soft tracks Noctalia muted (HSL sat ≈ 0.08 → OKLab C ≈ 0.008).
+        // Faithful keeps a light wallpaper tint but stays below the old 0.030 cap that read as neon paste.
+        // Vivid allows more tint, still softer on light backgrounds than dark.
+        let bgCap: Double
+        let bgScale: Double
+        switch style {
+        case .soft:
+            bgCap = dark ? 0.012 : 0.008
+            bgScale = 0.30
+        case .vivid:
+            bgCap = dark ? 0.038 : 0.020
+            bgScale = 0.80
+        case .faithful, .aether:
+            bgCap = dark ? 0.022 : 0.012
+            bgScale = 0.45
+        }
+        let bgChroma = min(bgCap, backdrop.chroma * bgScale)
         let background = backdrop.at(dark ? 0.18 : 0.965, chroma: bgChroma).rgb
         let foreground = readable(
             mean.at(dark ? 0.91 : 0.25, chroma: min(mean.chroma, 0.018)).rgb,
@@ -272,8 +288,20 @@ enum PerceptualPalette {
         }
         func accent(_ c: SampleCluster, bright: Bool = false) -> RGBColor {
             let lab = c.lab
-            let factor = style == .soft ? 0.65 : style == .vivid ? 1.35 : 1.0
-            let chroma = min(style == .vivid ? 0.23 : 0.18, lab.chroma * factor)
+            let factor: Double
+            let chromaCap: Double
+            switch style {
+            case .soft:
+                factor = 0.45
+                chromaCap = 0.10
+            case .vivid:
+                factor = 1.35
+                chromaCap = 0.23
+            case .faithful, .aether:
+                factor = 1.0
+                chromaCap = 0.16
+            }
+            let chroma = min(chromaCap, lab.chroma * factor)
             let l = dark ? min(0.86, max(0.68, lab.l)) : min(0.52, max(0.36, lab.l))
             return readable(
                 lab.at(l + (bright ? (dark ? 0.06 : -0.04) : 0), chroma: chroma).rgb,

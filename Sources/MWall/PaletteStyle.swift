@@ -13,10 +13,10 @@ enum PaletteStyle: String, Codable, CaseIterable, Identifiable, Sendable {
     }
     var detail: String {
         switch self {
-        case .aether: "Aether 原版取色，保留其明暗与色彩取舍。"
-        case .faithful: "保留壁纸的多组颜色，平衡原有彩度与文字可读性。"
-        case .soft: "降低彩度，让壁纸的颜色更柔和。"
+        case .soft: "贴近 Noctalia muted：浅色背景接近低饱和中性底，强调色也更克制。"
         case .vivid: "提高彩度，让壁纸的颜色更鲜明。"
+        case .faithful: "保留壁纸色相，浅色背景只留淡淡色调，避免大面积高饱和底。"
+        case .aether: "Aether 原版取色，保留其明暗与色彩取舍。"
         }
     }
 }
