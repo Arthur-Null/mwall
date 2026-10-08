@@ -216,11 +216,11 @@ final class AppStore: ObservableObject {
                 if options.applyThemeAfterWallpaperChange && !options.enabledThemeTargets.isEmpty {
                     let palettes = try await PaletteService.shared.generate(
                         from: appliedURL, style: options.paletteStyle, folders: localFolders)
-                    let report = try ThemeManager.apply(
+                    let report = try await ThemeManager.apply(
                         palettes: palettes, wallpaperURL: appliedURL,
                         targets: options.enabledThemeTargets,
                         reloadTerminals: options.reloadTerminalsAfterThemeChange)
-                    lastMessage = "已应用壁纸与\(options.paletteStyle.title)主题，共 \(report.writtenFiles.count) 个文件"
+                    lastMessage = report.message("已应用壁纸与\(options.paletteStyle.title)主题，共 \(report.writtenFiles.count) 个文件")
                 }
                 cleanupCacheSilently()
             } catch {
@@ -274,11 +274,11 @@ final class AppStore: ObservableObject {
                     NSPasteboard.general.setString(value, forType: .string)
                     lastMessage = "已复制 Codex App 主题"
                 } else {
-                    let report = try ThemeManager.apply(
+                    let report = try await ThemeManager.apply(
                         palettes: pair, wallpaperURL: url,
                         targets: options.enabledThemeTargets,
                         reloadTerminals: options.reloadTerminalsAfterThemeChange)
-                    lastMessage = "已应用\(options.paletteStyle.title)配色，共 \(report.writtenFiles.count) 个主题文件"
+                    lastMessage = report.message("已应用\(options.paletteStyle.title)配色，共 \(report.writtenFiles.count) 个主题文件")
                 }
             } catch {
                 lastMessage = "主题生成失败：\(error.localizedDescription)"

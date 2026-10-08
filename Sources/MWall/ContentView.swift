@@ -229,7 +229,7 @@ struct ContentView: View {
                             set: { _ in store.toggleThemeTarget(target) }
                         ))
                 }
-                Text("首次生成后，在应用里选择 mwall 主题。Pi 支持实时更新；Codex CLI 需要新建会话加载更新。")
+                Text("终端和编辑器首次生成后选择 mwall 主题。Pi 支持实时更新；Codex CLI 需要新建会话。Codex App 自动同步浅色与深色配色，重启 App 后生效。")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } header: {

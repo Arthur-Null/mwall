@@ -3,6 +3,11 @@ import Foundation
 struct ThemeApplyReport {
     var writtenFiles: [URL]
     var reloadAttempts: [String]
+    var notes: [String] = []
+
+    func message(_ summary: String) -> String {
+        ([summary] + notes).joined(separator: "；")
+    }
 }
 
 enum ThemeManager {
@@ -16,14 +21,24 @@ enum ThemeManager {
         wallpaperURL: URL,
         targets: Set<ThemeTarget>,
         reloadTerminals: Bool
-    ) throws -> ThemeApplyReport {
+    ) async throws -> ThemeApplyReport {
         var written: [URL] = []
-        for target in targets.intersection(ThemeTarget.supported).sorted(by: { $0.rawValue < $1.rawValue }) {
+        for target in targets.intersection(ThemeTarget.supported).subtracting([.codexApp]).sorted(by: { $0.rawValue < $1.rawValue }) {
             let files = try writer(for: target)(palettes, wallpaperURL)
             written.append(contentsOf: files)
         }
         let reloads = reloadTerminals ? TerminalReloader.reload(targets: targets.intersection(ThemeTarget.supported)) : []
-        return ThemeApplyReport(writtenFiles: written, reloadAttempts: reloads)
+        var notes: [String] = []
+        if targets.contains(.codexApp) {
+            do {
+                written += try await CodexAppThemeWriter.write(palettes)
+                notes.append("Codex App 配色已同步，重启 App 后生效")
+            } catch {
+                if written.isEmpty { throw error }
+                notes.append("Codex App 同步失败：\(error.localizedDescription)")
+            }
+        }
+        return ThemeApplyReport(writtenFiles: written, reloadAttempts: reloads, notes: notes)
     }
 
     private static func writer(for target: ThemeTarget) -> (TerminalPalettePair, URL) throws -> [URL] {
@@ -34,7 +49,7 @@ enum ThemeManager {
         case .starship: writeStarship
         case .pi: { try AgentThemeWriter.writePi($0, $1) }
         case .codexCLI: { try AgentThemeWriter.writeCodexCLI($0, $1) }
-        case .alacritty, .wezterm, .iterm2, .terminal:
+        case .codexApp, .alacritty, .wezterm, .iterm2, .terminal:
             { _, _ in [] }
         }
     }

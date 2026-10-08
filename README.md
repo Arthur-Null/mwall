@@ -44,6 +44,7 @@ MWALL_SANDBOX=1 tools/package_app.sh
 - Best-effort terminal reload hooks for Kitty, WezTerm, iTerm2 import, and Terminal.app.
 - Neovim colorschemes with live updates for open editors, including AstroNvim and LazyVim.
 - Pi themes with native live updates, plus Codex CLI syntax-highlighting themes.
+- Opt-in Codex App synchronization of light and dark desktop palettes, applied on app restart.
 - Launch at Login toggle when running as `MWall.app`.
 
 ## Palette styles and interface
@@ -90,6 +91,18 @@ Unsplash API JSON requests are rate-limited by Unsplash, while image file reques
 - `Previews/`: 600x338 preview images used by the wallpaper grid.
 - `Full/`: 3840x2160 images downloaded only when a wallpaper is applied.
 - `metadata.json`: cached Unsplash photo metadata and local file paths.
+
+## Codex App Synchronization
+
+Enable **Codex App** under **设置 → 同步到应用**, then generate a theme or change wallpaper with theme generation enabled. This target is opt-in, including on new installations. MWall automatically writes both wallpaper-derived light and dark desktop palettes to the user's Codex configuration; copying and importing a theme string is no longer required.
+
+The colors take effect the next time the desktop app starts. A running app keeps its theme in memory, so MWall reports **重启 App 后生效** and does not restart the app. The existing **复制 Codex App** button remains available for manual import into a running app or older versions.
+
+Synchronization requires a recent Codex App or Codex CLI with the desktop settings in the **desktop** section of **config.toml**. Codex CLI 0.154.0 was validated. MWall discovers the bundled CLI in ChatGPT.app / Codex.app, Homebrew, common user binary directories, or its process PATH. It honors CODEX_HOME, otherwise using ~/.codex/config.toml. It uses the official app-server **config/read** and **config/batchWrite** APIs to preserve TOML and update both variants atomically, with a version check to reject concurrent edits. It changes accent, background, foreground, and semantic diff/skill colors while preserving fonts, contrast, transparency, appearance mode, code themes, and unrelated configuration. Missing theme fields receive valid defaults. Identical palettes do not rewrite the file.
+
+Missing CLI binaries, incompatible versions, invalid configuration, conflicts, and timeouts are reported without preventing other selected theme exports. Synchronization runs off the UI thread and makes no model requests. Reference: [Codex app-server configuration APIs](https://developers.openai.com/codex/app-server/).
+
+For an isolated integration test against an installed CLI, run **MWALL_CODEX_CLI=/opt/homebrew/bin/codex swift test**. The test uses temporary configurations, preserves unrelated preferences, exercises repeat updates and version conflicts, and never changes the user's Codex configuration.
 
 ## Generated Theme Files
 
@@ -183,7 +196,7 @@ Run `swift test` with Neovim installed (or set `NVIM_BIN` to its executable). Th
 
 Enable **Pi** and/or **Codex CLI** in MWall, then click **生成主题** or apply a wallpaper with theme generation enabled. Existing saved target selections are preserved, so existing installations must enable the new targets once. New settings include both targets by default.
 
-Both exporters write `mwall`, `mwall-dark`, and `mwall-light`. The `mwall` variant uses macOS appearance when generated. Unchanged theme content is left untouched. MWall does not edit either application's settings or automatically select a theme.
+Both exporters write `mwall`, `mwall-dark`, and `mwall-light`. The `mwall` variant uses macOS appearance when generated. Unchanged theme content is left untouched. The Pi and Codex CLI exporters do not edit settings or automatically select a theme. The separate Codex App target updates desktop palette settings as described above.
 
 ### Pi
 

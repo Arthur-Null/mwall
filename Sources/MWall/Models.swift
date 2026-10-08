@@ -119,12 +119,13 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
     case starship
     case pi
     case codexCLI = "codex-cli"
+    case codexApp = "codex-app"
     case iterm2
     case terminal
 
     var id: String { rawValue }
 
-    static let allCases: [ThemeTarget] = [.kitty, .ghostty, .neovim, .starship, .pi, .codexCLI]
+    static let allCases: [ThemeTarget] = [.kitty, .ghostty, .neovim, .starship, .pi, .codexCLI, .codexApp]
 
     var displayName: String {
         switch self {
@@ -134,6 +135,7 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
         case .starship: "Starship"
         case .pi: "Pi"
         case .codexCLI: "Codex CLI"
+        case .codexApp: "Codex App"
         case .alacritty: "Alacritty"
         case .wezterm: "WezTerm"
         case .iterm2: "iTerm2"
