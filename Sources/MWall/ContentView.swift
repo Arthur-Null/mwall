@@ -53,7 +53,9 @@ struct ContentView: View {
                     ProgressView().controlSize(.small).accessibilityLabel("正在处理")
                 }
                 Menu {
-                    Button("添加壁纸文件夹", systemImage: "folder.badge.plus") { store.chooseLocalFolder() }
+                    Button("添加壁纸文件夹", systemImage: "folder.badge.plus") {
+                        store.chooseLocalFolder()
+                    }
                     Button("重新扫描图库", systemImage: "arrow.clockwise") { store.refreshLibrary() }
                     Divider()
                     Button("退出 MWall", systemImage: "power") { NSApp.terminate(nil) }
@@ -96,13 +98,25 @@ struct ContentView: View {
                     .monospacedDigit()
                 Spacer()
                 if store.settings.currentSource == .unsplash {
-                    Button("换一批", systemImage: "arrow.triangle.2.circlepath") { store.refreshUnsplashBatch() }
-                        .disabled(store.isWorking)
+                    Button("换一批", systemImage: "arrow.triangle.2.circlepath") {
+                        store.refreshUnsplashBatch()
+                    }
+                    .disabled(store.isWorking)
+                } else if store.settings.currentSource == .wallhaven {
+                    Button(
+                        store.settings.wallhavenSearch.sorting == .random ? "换一批" : "刷新",
+                        systemImage: "arrow.triangle.2.circlepath"
+                    ) { store.refreshWallhaven() }
+                    .disabled(store.isWorking)
                 } else if store.settings.currentSource == .local {
                     Button("添加文件夹", systemImage: "folder.badge.plus") { store.chooseLocalFolder() }
                 }
             }
             .padding(16)
+
+            if store.settings.currentSource == .wallhaven {
+                wallhavenFilters
+            }
 
             if store.visibleWallpapers.isEmpty {
                 ContentUnavailableView {
@@ -114,21 +128,73 @@ struct ContentView: View {
                         Button("添加文件夹") { store.chooseLocalFolder() }
                     } else if store.settings.currentSource == .unsplash {
                         Button("设置 Unsplash") { page = .settings }
+                    } else if store.settings.currentSource == .wallhaven {
+                        Button("加载壁纸") { store.refreshWallhaven() }.disabled(store.isWorking)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 16) {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 16
+                    ) {
                         ForEach(store.visibleWallpapers) { item in
-                            WallpaperTile(item: item, selected: store.currentWallpaper?.id == item.id)
+                            WallpaperTile(
+                                item: item, selected: store.currentWallpaper?.id == item.id)
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 16)
                 }
             }
+            if store.settings.currentSource == .wallhaven {
+                HStack {
+                    Text("SFW · 横屏 · 1080p+").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        store.refreshWallhaven(page: store.wallhavenPage - 1, preserveSeed: true)
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .accessibilityLabel("上一页")
+                    .disabled(store.wallhavenPage <= 1)
+                    Text("\(store.wallhavenPage) / \(store.wallhavenLastPage)")
+                        .font(.caption).monospacedDigit()
+                    Button {
+                        store.refreshWallhaven(page: store.wallhavenPage + 1, preserveSeed: true)
+                    } label: {
+                        Image(systemName: "chevron.right")
+                    }
+                    .accessibilityLabel("下一页")
+                    .disabled(store.wallhavenPage >= store.wallhavenLastPage)
+                }
+                .disabled(store.isWorking || !store.wallhavenResultsMatchSearch)
+                .padding(.horizontal, 16).padding(.vertical, 8)
+            }
         }
+    }
+
+    private var wallhavenFilters: some View {
+        VStack(spacing: 10) {
+            HStack {
+                TextField("搜索关键词或标签", text: $store.settings.wallhavenSearch.query)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { store.refreshWallhaven() }
+                Button("搜索") { store.refreshWallhaven() }
+            }
+            HStack(spacing: 16) {
+                Picker("分类", selection: $store.settings.wallhavenSearch.category) {
+                    ForEach(WallhavenCategory.allCases) { Text($0.title).tag($0) }
+                }
+                Picker("排序", selection: $store.settings.wallhavenSearch.sorting) {
+                    ForEach(WallhavenSorting.allCases) { Text($0.title).tag($0) }
+                }
+            }
+        }
+        .disabled(store.isWorking)
+        .padding(.horizontal, 16).padding(.bottom, 12)
+        .onChange(of: store.settings.wallhavenSearch.category) { _, _ in store.refreshWallhaven() }
+        .onChange(of: store.settings.wallhavenSearch.sorting) { _, _ in store.refreshWallhaven() }
     }
 
     private var paletteEditor: some View {
@@ -229,9 +295,11 @@ struct ContentView: View {
                             set: { _ in store.toggleThemeTarget(target) }
                         ))
                 }
-                Text("终端和编辑器首次生成后选择 mwall 主题。Pi 支持实时更新；Codex CLI 需要新建会话。Codex App 自动同步浅色与深色配色，重启 App 后生效。")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "终端和编辑器首次生成后选择 mwall 主题。Pi 支持实时更新；Codex CLI 需要新建会话。Codex App 自动同步浅色与深色配色，重启 App 后生效。"
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             } header: {
                 Text("同步到应用")
             }
@@ -256,6 +324,46 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button("清理缓存") { store.cleanupCache() }
+                }
+            }
+            Section("Wallhaven") {
+                HStack {
+                    SecureField(
+                        store.hasWallhavenAPIKey ? "输入新 Key 以替换" : "API Key（可选）",
+                        text: $store.wallhavenAPIKey)
+                    Button {
+                        store.pasteWallhavenAPIKey()
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
+                    }
+                    .help("粘贴 Wallhaven API Key")
+                    .accessibilityLabel("粘贴 Wallhaven API Key")
+                    Button("保存") { store.saveWallhavenAPIKey() }
+                        .disabled(
+                            store.wallhavenAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                                .isEmpty)
+                }
+                HStack {
+                    Text(store.hasWallhavenAPIKey ? "已保存到 macOS 钥匙串" : "未配置密钥，使用匿名访问")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    if store.hasWallhavenAPIKey {
+                        Button("移除密钥", role: .destructive) { store.removeWallhavenAPIKey() }
+                    }
+                }
+                Text("密钥可在 Wallhaven 账户设置中获取。未填写也可搜索；始终只显示 SFW 壁纸。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Stepper(
+                    "缓存上限 \(store.settings.wallhavenCacheLimitMB) MB",
+                    value: $store.settings.wallhavenCacheLimitMB, in: 100...5000, step: 100
+                )
+                .monospacedDigit()
+                HStack {
+                    Text("已使用约 \(CacheManager.cacheSizeMB(in: StorePaths.wallhaven)) MB")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("清理缓存") { store.cleanupWallhavenCache() }
                 }
             }
             Section("本地文件夹") {
@@ -308,7 +416,8 @@ struct ContentView: View {
                         store.applyThemeForSelectedOrLatest()
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(store.currentWallpaper == nil || store.settings.enabledThemeTargets.isEmpty)
+                    .disabled(
+                        store.currentWallpaper == nil || store.settings.enabledThemeTargets.isEmpty)
                 } else {
                     Text("偏好自动保存").font(.caption).foregroundStyle(.secondary)
                     Spacer()
@@ -323,8 +432,9 @@ struct ContentView: View {
     }
 
     private var targetSummary: String {
-        let names = ThemeTarget.allCases.filter { store.settings.enabledThemeTargets.contains($0) }.map(
-            \.displayName)
+        let names = ThemeTarget.allCases.filter { store.settings.enabledThemeTargets.contains($0) }
+            .map(
+                \.displayName)
         return names.isEmpty ? "尚未选择应用" : names.joined(separator: " · ")
     }
     private var emptyTitle: String {
@@ -341,6 +451,7 @@ struct ContentView: View {
         case .history: "应用过的壁纸会出现在这里。"
         case .local: "添加本地文件夹，即可浏览其中的图片。"
         case .unsplash: "在设置中填入 Access Key，再点“换一批”。"
+        case .wallhaven: "默认浏览二次元横屏壁纸，也可以搜索关键词或切换分类。API Key 为可选项。"
         default: "重新扫描图库后再试。"
         }
     }
@@ -392,7 +503,8 @@ private struct WallpaperTile: View {
             }
             Text(
                 item.id.hasPrefix("unsplash:")
-                    ? (item.source?.replacingOccurrences(of: "Photo by ", with: "") ?? item.title) : item.title
+                    ? (item.source?.replacingOccurrences(of: "Photo by ", with: "") ?? item.title)
+                    : item.title
             )
             .font(.caption)
             .foregroundStyle(.secondary)

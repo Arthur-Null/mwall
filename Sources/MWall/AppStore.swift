@@ -6,13 +6,20 @@ final class AppStore: ObservableObject {
     @Published private(set) var builtInWallpapers: [WallpaperItem] = []
     @Published private(set) var localWallpapers: [WallpaperItem] = []
     @Published private(set) var unsplashWallpapers: [WallpaperItem] = []
+    @Published private(set) var wallhavenWallpapers: [WallpaperItem] = []
+    @Published private(set) var wallhavenPage = 1
+    @Published private(set) var wallhavenLastPage = 1
+    @Published var wallhavenAPIKey = ""
+    @Published private(set) var hasWallhavenAPIKey = false
     @Published private(set) var history: [HistoryEntry] = []
     @Published private(set) var favorites: [WallpaperItem] = []
     @Published var settings = AppSettings() {
         didSet { if persistsChanges { Persistence.save(settings, to: StorePaths.settings) } }
     }
     @Published var localFolders: [LocalFolderBookmark] = [] {
-        didSet { if persistsChanges { Persistence.save(localFolders, to: StorePaths.folderBookmarks) } }
+        didSet {
+            if persistsChanges { Persistence.save(localFolders, to: StorePaths.folderBookmarks) }
+        }
     }
     @Published var lastMessage = ""
     @Published var selectedWallpaperID: String?
@@ -23,12 +30,26 @@ final class AppStore: ObservableObject {
     @Published var previewError: String?
     private let persistsChanges: Bool
     private let maxHistoryCount = 80
+    private let wallhavenService: WallhavenService
+    private var loadedWallhavenSearch: WallhavenSearch?
+    private var wallhavenSeed: String?
 
-    init(previewItems: [WallpaperItem]? = nil) {
+    init(
+        previewItems: [WallpaperItem]? = nil, previewHistory: [HistoryEntry] = [],
+        wallhavenService: WallhavenService = WallhavenService()
+    ) {
+        self.wallhavenService = wallhavenService
         persistsChanges = previewItems == nil
         if let previewItems {
-            unsplashWallpapers = previewItems
-            settings.currentSource = .unsplash
+            history = previewHistory
+            if previewItems.first?.onlineSource == .wallhaven {
+                wallhavenWallpapers = previewItems
+                settings.currentSource = .wallhaven
+                loadedWallhavenSearch = settings.wallhavenSearch
+            } else {
+                unsplashWallpapers = previewItems
+                settings.currentSource = .unsplash
+            }
             selectedWallpaperID = previewItems.first?.id
         }
     }
@@ -77,7 +98,25 @@ final class AppStore: ObservableObject {
         return item.url
     }
 
-    private func resolveOriginal(_ item: WallpaperItem) async throws -> URL {
+    func resolveOriginal(_ item: WallpaperItem) async throws -> URL {
+        if let local = item.fullLocalURL, FileManager.default.fileExists(atPath: local.path) {
+            return local
+        }
+        if item.onlineSource == .wallhaven {
+            let (url, updated) = try await wallhavenService.fullWallpaper(for: item)
+            if let index = wallhavenWallpapers.firstIndex(where: { $0.id == item.id }) {
+                wallhavenWallpapers[index].fullLocalURL = updated.fullLocalURL
+            }
+            if let index = favorites.firstIndex(where: { $0.id == item.id }) {
+                favorites[index].fullLocalURL = updated.fullLocalURL
+                if persistsChanges { Persistence.save(favorites, to: StorePaths.favorites) }
+            }
+            if let index = history.firstIndex(where: { $0.item.id == item.id }) {
+                history[index].item.fullLocalURL = updated.fullLocalURL
+                if persistsChanges { Persistence.save(history, to: StorePaths.history) }
+            }
+            return url
+        }
         if item.fullResolutionURL != nil {
             let (url, updated) = try await UnsplashService.fullWallpaperURL(
                 for: item, accessKey: settings.unsplashAccessKey)
@@ -98,6 +137,7 @@ final class AppStore: ObservableObject {
         favorites = Persistence.load([WallpaperItem].self, from: StorePaths.favorites, fallback: [])
         history = Persistence.load([HistoryEntry].self, from: StorePaths.history, fallback: [])
         settings.launchAtLogin = LoginItemService.isEnabled
+        hasWallhavenAPIKey = WallhavenCredentials.isStored()
         refreshLibrary()
     }
 
@@ -109,6 +149,8 @@ final class AppStore: ObservableObject {
             localWallpapers
         case .unsplash:
             unsplashWallpapers
+        case .wallhaven:
+            wallhavenWallpapers
         case .favorite:
             favorites
         case .history:
@@ -132,6 +174,7 @@ final class AppStore: ObservableObject {
             }
         }
         unsplashWallpapers = UnsplashService.localItems()
+        restoreWallhavenCache()
         if updateMessage {
             lastMessage = "已扫描 \(builtInWallpapers.count + localWallpapers.count) 张壁纸"
         }
@@ -169,6 +212,9 @@ final class AppStore: ObservableObject {
         settings.currentSource = source
         if source == .unsplash {
             ensureUnsplashPool()
+        } else if source == .wallhaven {
+            restoreWallhavenCache()
+            if wallhavenWallpapers.isEmpty { refreshWallhaven() }
         }
         selectedWallpaperID = visibleWallpapers.first?.id
     }
@@ -189,7 +235,8 @@ final class AppStore: ObservableObject {
     }
 
     func applyRandomWallpaper() {
-        guard let item = visibleWallpapers.randomElement() ?? builtInWallpapers.randomElement() else {
+        guard let item = visibleWallpapers.randomElement() ?? builtInWallpapers.randomElement()
+        else {
             lastMessage = "没有可用壁纸"
             return
         }
@@ -205,7 +252,9 @@ final class AppStore: ObservableObject {
             defer { isWorking = false }
             do {
                 let url = try await resolveOriginal(item)
-                let appliedURL = try SecurityScopedBookmarks.withAccess(for: url, folders: localFolders) {
+                let appliedURL = try SecurityScopedBookmarks.withAccess(
+                    for: url, folders: localFolders
+                ) {
                     try WallpaperService.setDesktopImage(url, allScreens: options.applyToAllScreens)
                 }
                 selectedWallpaperID = item.id
@@ -220,7 +269,8 @@ final class AppStore: ObservableObject {
                         palettes: palettes, wallpaperURL: appliedURL,
                         targets: options.enabledThemeTargets,
                         reloadTerminals: options.reloadTerminalsAfterThemeChange)
-                    lastMessage = report.message("已应用壁纸与\(options.paletteStyle.title)主题，共 \(report.writtenFiles.count) 个文件")
+                    lastMessage = report.message(
+                        "已应用壁纸与\(options.paletteStyle.title)主题，共 \(report.writtenFiles.count) 个文件")
                 }
                 cleanupCacheSilently()
             } catch {
@@ -278,7 +328,8 @@ final class AppStore: ObservableObject {
                         palettes: pair, wallpaperURL: url,
                         targets: options.enabledThemeTargets,
                         reloadTerminals: options.reloadTerminalsAfterThemeChange)
-                    lastMessage = report.message("已应用\(options.paletteStyle.title)配色，共 \(report.writtenFiles.count) 个主题文件")
+                    lastMessage = report.message(
+                        "已应用\(options.paletteStyle.title)配色，共 \(report.writtenFiles.count) 个主题文件")
                 }
             } catch {
                 lastMessage = "主题生成失败：\(error.localizedDescription)"
@@ -288,7 +339,8 @@ final class AppStore: ObservableObject {
 
     func cleanupCache() {
         do {
-            let removed = try CacheManager.cleanupUnsplashCache(limitMB: settings.unsplashCacheLimitMB)
+            let removed = try CacheManager.cleanupUnsplashCache(
+                limitMB: settings.unsplashCacheLimitMB)
             lastMessage = removed == 0 ? "缓存无需清理" : "已清理 \(removed) 个缓存文件"
             refreshLibrary(updateMessage: false)
         } catch {
@@ -344,6 +396,107 @@ final class AppStore: ObservableObject {
         lastMessage = "已从剪贴板填入 Unsplash Access Key"
     }
 
+    var wallhavenResultsMatchSearch: Bool {
+        loadedWallhavenSearch == settings.wallhavenSearch
+    }
+
+    func refreshWallhaven(page: Int = 1, preserveSeed: Bool = false) {
+        guard !isWorking else { return }
+        let search = settings.wallhavenSearch
+        let seed = preserveSeed && wallhavenResultsMatchSearch ? wallhavenSeed : nil
+        isWorking = true
+        lastMessage = "正在从 Wallhaven 加载壁纸..."
+        Task {
+            defer { isWorking = false }
+            do {
+                let key = persistsChanges ? try WallhavenCredentials.load() : ""
+                let result = try await wallhavenService.fetch(
+                    search: search, page: page, seed: seed, apiKey: key)
+                guard search == settings.wallhavenSearch else { return }
+                showWallhavenPage(result, search: search)
+                if settings.currentSource == .wallhaven {
+                    selectedWallpaperID = wallhavenWallpapers.first?.id
+                }
+                lastMessage =
+                    result.items.isEmpty
+                    ? "没有匹配的壁纸，试试其他关键词或分类。"
+                    : "已加载 \(result.items.count) 张 Wallhaven 壁纸"
+                if result.failedPreviews > 0 {
+                    lastMessage += "，\(result.failedPreviews) 张预览下载失败，可重试。"
+                }
+                _ = try? CacheManager.cleanupCache(
+                    in: wallhavenService.directory, limitMB: settings.wallhavenCacheLimitMB)
+            } catch {
+                lastMessage = "Wallhaven 失败：\(error.localizedDescription)"
+                if !wallhavenWallpapers.isEmpty && !wallhavenResultsMatchSearch {
+                    lastMessage += " 仍显示上次搜索结果。"
+                }
+            }
+        }
+    }
+
+    func pasteWallhavenAPIKey() {
+        wallhavenAPIKey =
+            NSPasteboard.general.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        lastMessage = wallhavenAPIKey.isEmpty ? "剪贴板里没有可用文本" : "已粘贴，点击“保存”存入钥匙串。"
+    }
+
+    func saveWallhavenAPIKey() {
+        guard persistsChanges else { return }
+        do {
+            try WallhavenCredentials.save(wallhavenAPIKey)
+            wallhavenAPIKey = ""
+            hasWallhavenAPIKey = true
+            lastMessage = "Wallhaven API Key 已保存到钥匙串。"
+        } catch {
+            lastMessage = error.localizedDescription
+        }
+    }
+
+    func removeWallhavenAPIKey() {
+        guard persistsChanges else { return }
+        do {
+            try WallhavenCredentials.remove()
+            wallhavenAPIKey = ""
+            hasWallhavenAPIKey = false
+            lastMessage = "已移除 Wallhaven API Key，将使用匿名访问。"
+        } catch {
+            lastMessage = error.localizedDescription
+        }
+    }
+
+    func cleanupWallhavenCache() {
+        do {
+            let removed = try CacheManager.cleanupCache(
+                in: wallhavenService.directory, limitMB: settings.wallhavenCacheLimitMB)
+            restoreWallhavenCache()
+            lastMessage = removed == 0 ? "缓存无需清理" : "已清理 \(removed) 个 Wallhaven 缓存文件"
+        } catch {
+            lastMessage = "缓存清理失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func restoreWallhavenCache() {
+        if let cached = wallhavenService.cachedPage(for: settings.wallhavenSearch) {
+            showWallhavenPage(cached, search: settings.wallhavenSearch)
+        } else {
+            wallhavenWallpapers = []
+            loadedWallhavenSearch = nil
+            wallhavenSeed = nil
+            wallhavenPage = 1
+            wallhavenLastPage = 1
+        }
+    }
+
+    private func showWallhavenPage(_ page: WallhavenPage, search: WallhavenSearch) {
+        wallhavenWallpapers = page.items
+        wallhavenPage = page.currentPage
+        wallhavenLastPage = page.lastPage
+        wallhavenSeed = page.seed
+        loadedWallhavenSearch = search
+    }
+
     private func pruneUnsupportedThemeTargets() {
         settings.enabledThemeTargets.formIntersection(ThemeTarget.supported)
     }
@@ -351,7 +504,9 @@ final class AppStore: ObservableObject {
     private func currentWallpaperCandidate() -> WallpaperItem? {
         if let selectedWallpaperID,
             let selected =
-                (builtInWallpapers + localWallpapers + unsplashWallpapers + favorites + history.map(\.item))
+                (builtInWallpapers + localWallpapers + unsplashWallpapers + wallhavenWallpapers
+                + favorites
+                + history.map(\.item))
                 .first(where: { $0.id == selectedWallpaperID })
         {
             return selected
@@ -382,6 +537,9 @@ final class AppStore: ObservableObject {
         _ = try? CacheManager.cleanupUnsplashCache(limitMB: settings.unsplashCacheLimitMB)
         unsplashWallpapers = UnsplashService.localItems()
         UnsplashService.saveCachedItems(unsplashWallpapers)
+        _ = try? CacheManager.cleanupCache(
+            in: wallhavenService.directory, limitMB: settings.wallhavenCacheLimitMB)
+        restoreWallhavenCache()
     }
 
     private func addHistory(_ item: WallpaperItem) {

@@ -37,6 +37,7 @@ MWALL_SANDBOX=1 tools/package_app.sh
 - Local wallpaper folders.
 - Security-scoped bookmarks for user-selected folders, ready for sandboxed builds.
 - Unsplash featured wallpaper pool with preview/full-resolution two-layer cache.
+- Wallhaven keyword search, categories, sorting, and pagination, defaulting to SFW anime wallpapers.
 - Apply to the current desktop or all macOS desktops/Spaces.
 - Favorites and recent wallpaper history.
 - Dark and light palette extraction from the applied wallpaper.
@@ -49,7 +50,7 @@ MWALL_SANDBOX=1 tools/package_app.sh
 
 ## Palette styles and interface
 
-The menu bar panel has three pages: **壁纸** for browsing, **配色** for choosing a generation style and previewing code, and **设置** for app targets, automation, folders, and Unsplash.
+The menu bar panel has three pages: **壁纸** for browsing, **配色** for choosing a generation style and previewing code, and **设置** for app targets, automation, folders, and online sources.
 
 - **Aether** uses the upstream normal-mode generator at commit f0ae849966cc038a21808170b21e07772cb3619c, without MWall recoloring. HEIC and TIFF inputs are decoded by macOS into a temporary sRGB PNG because upstream does not decode those formats; JPEG, PNG, GIF and WebP inputs within upstream limits pass through unchanged. Native-format inputs and images exceeding the upstream 16,384-pixel dimension or 40-megapixel limit are imported at up to 4,096 pixels on the longest side, preserving aspect ratio.
 - **忠实壁纸** (default) keeps wallpaper hues with a light tinted background (OKLab chroma ≤ ~0.012).
@@ -58,7 +59,7 @@ The menu bar panel has three pages: **壁纸** for browsing, **配色** for choo
 
 The former single-seed/fixed-hue generator has been removed. Existing settings migrate to **忠实壁纸** while keeping target apps and other preferences. Style changes update the preview without writing theme files. **生成并应用**, Codex App copying, and automatic generation after wallpaper changes all use the saved style.
 
-Each style generates both light and dark palettes. Previewing Unsplash uses a cached original when present; otherwise the interface labels the thumbnail preview. Applying downloads or reuses the original before extracting colors. Generation runs off the UI thread. Cached results are keyed by image path, modification time, size, and style.
+Each style generates both light and dark palettes. Previewing online wallpapers uses a cached original when present; otherwise the interface labels the thumbnail preview. Applying downloads or reuses the original before extracting colors. Generation runs off the UI thread. Cached results are keyed by image path, modification time, size, and style.
 
 The three MWall styles use aspect-preserving sRGB sampling and OKLab clustering with real-pixel representatives. They target 7:1 main-text contrast and 4.5:1 ANSI accent contrast against the background. These checks do not guarantee that every syntax role is visually distinct. Missing wallpaper hues can also weaken conventional ANSI red/green semantics. Aether keeps its own contrast and hue decisions.
 
@@ -91,6 +92,20 @@ Unsplash API JSON requests are rate-limited by Unsplash, while image file reques
 - `Previews/`: 600x338 preview images used by the wallpaper grid.
 - `Full/`: 3840x2160 images downloaded only when a wallpaper is applied.
 - `metadata.json`: cached Unsplash photo metadata and local file paths.
+
+## Wallhaven
+
+Select **Wallhaven** in the wallpaper source picker. The default search shows SFW anime wallpapers in landscape orientation at 1920x1080 or higher. Search by keyword or tag, switch between anime/general/people/all categories, and sort randomly, by newest, or by the monthly toplist. Pagination preserves the random seed; **换一批** starts a new random sequence.
+
+An API key is optional. Under **设置 → Wallhaven**, paste a key from your Wallhaven account settings and click **保存**. MWall stores it in macOS Keychain, sends it only in the API request's `X-API-Key` header, and never includes it in settings JSON, search URLs, image requests, or cache metadata. **移除密钥** returns to anonymous access. Both modes explicitly request SFW content rather than inheriting account purity defaults.
+
+Wallhaven's official API documentation lists 45 API calls per minute without specifying a higher authenticated quota. MWall does not promise a rate-limit increase for configured keys. Invalid keys and rate limiting produce separate messages; failed searches preserve the previous cached page.
+
+Wallhaven uses its own cache under `~/Library/Caches/MWall/Wallhaven`: `Previews/` holds thumbnails, `Full/` holds originals in their original file format, and `metadata.json` records the last successful search page without credentials. Originals download on demand when applying wallpapers or generating themes. Favorites and history retain the provider identity even when displayed under another source. Each provider has an independent cache limit.
+
+The integration references the [Noctalia Wallhaven plugin](https://github.com/noctalia-dev/official-plugins/tree/main/wallhaven) and the [official Wallhaven API](https://wallhaven.cc/help/api). It uses native Swift and SwiftUI rather than importing the plugin runtime.
+
+For an opt-in anonymous network check, run `MWALL_WALLHAVEN_LIVE=/tmp/mwall-wallhaven-live swift test --filter wallhavenLiveSmoke`. This downloads one page of SFW previews and one original into the specified test directory, without applying wallpapers or changing settings. That directory also works as `--snapshot-ui` fixture input for Wallhaven's default search.
 
 ## Codex App Synchronization
 

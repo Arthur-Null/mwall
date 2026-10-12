@@ -21,23 +21,29 @@ enum UISnapshot {
         }
         let output = URL(fileURLWithPath: args[2])
         let cache = URL(fileURLWithPath: args[3])
-        let originals = try FileManager.default.contentsOfDirectory(
-            at: cache.appendingPathComponent("Full"), includingPropertiesForKeys: nil
-        )
-        .filter { ["jpg", "png", "jpeg"].contains($0.pathExtension.lowercased()) }.sorted {
-            $0.path < $1.path
-        }
-        let metadata = try JSONDecoder().decode(
-            [WallpaperItem].self, from: Data(contentsOf: cache.appendingPathComponent("metadata.json")))
-        let items = originals.map { url -> WallpaperItem in
-            let id =
-                "unsplash:"
-                + url.deletingPathExtension().lastPathComponent.replacingOccurrences(
-                    of: "unsplash-", with: "")
-            let saved = metadata.first { $0.id == id }
-            return WallpaperItem(
-                id: id, url: url, title: saved?.title, kind: .unsplash,
-                source: saved?.source, fullLocalURL: url)
+        let items: [WallpaperItem]
+        if let cached = WallhavenService(directory: cache).cachedPage(for: WallhavenSearch()) {
+            items = cached.items
+        } else {
+            let originals = try FileManager.default.contentsOfDirectory(
+                at: cache.appendingPathComponent("Full"), includingPropertiesForKeys: nil
+            )
+            .filter { ["jpg", "png", "jpeg"].contains($0.pathExtension.lowercased()) }.sorted {
+                $0.path < $1.path
+            }
+            let metadata = try JSONDecoder().decode(
+                [WallpaperItem].self,
+                from: Data(contentsOf: cache.appendingPathComponent("metadata.json")))
+            items = originals.map { url -> WallpaperItem in
+                let id =
+                    "unsplash:"
+                    + url.deletingPathExtension().lastPathComponent.replacingOccurrences(
+                        of: "unsplash-", with: "")
+                let saved = metadata.first { $0.id == id }
+                return WallpaperItem(
+                    id: id, url: url, title: saved?.title, kind: .unsplash,
+                    source: saved?.source, fullLocalURL: url)
+            }
         }
         let store = AppStore(previewItems: items)
         store.settings.paletteStyle = style
@@ -73,7 +79,9 @@ enum UISnapshot {
                     try FileManager.default.createDirectory(
                         at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
                     try png.write(to: output)
-                    print("SNAPSHOT \(output.path) \(Int(view.bounds.width))x\(Int(view.bounds.height))")
+                    print(
+                        "SNAPSHOT \(output.path) \(Int(view.bounds.width))x\(Int(view.bounds.height))"
+                    )
                     window.orderOut(nil)
                     exit(0)
                 } catch {
