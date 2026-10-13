@@ -95,7 +95,7 @@ Unsplash API JSON requests are rate-limited by Unsplash, while image file reques
 
 ## Wallhaven
 
-Select **Wallhaven** in the wallpaper source picker. The default search shows SFW anime wallpapers in landscape orientation at 1920x1080 or higher. Search by keyword or tag, switch between anime/general/people/all categories, and sort randomly, by newest, or by the monthly toplist. Pagination preserves the random seed; **换一批** starts a new random sequence.
+Select **Wallhaven** in the wallpaper source picker. The default search shows SFW anime wallpapers in landscape orientation at 1920x1080 or higher. Search by keyword or tag, switch between anime/general/people/all categories, and sort randomly, by newest, by the monthly toplist, by most favorites, or by most views. Favorites and views are sorted in descending order; views measure page views, not downloads, matching the Noctalia plugin sorting options. Pagination preserves the random seed; **换一批** starts a new random sequence.
 
 An API key is optional. Under **设置 → Wallhaven**, paste a key from your Wallhaven account settings and click **保存**. MWall stores it in macOS Keychain, sends it only in the API request's `X-API-Key` header, and never includes it in settings JSON, search URLs, image requests, or cache metadata. **移除密钥** returns to anonymous access. Both modes explicitly request SFW content rather than inheriting account purity defaults.
 

@@ -26,12 +26,16 @@ enum WallhavenSorting: String, Codable, CaseIterable, Identifiable, Sendable {
     case random
     case latest = "date_added"
     case toplist
+    case favorites
+    case views
     var id: String { rawValue }
     var title: String {
         switch self {
         case .random: "随机"
         case .latest: "最新"
         case .toplist: "热门"
+        case .favorites: "收藏最多"
+        case .views: "浏览最多"
         }
     }
 }

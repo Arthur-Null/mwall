@@ -41,6 +41,30 @@ import Testing
     #expect(queryValues(popular)["page"] == "1")
 }
 
+@Test(arguments: [WallhavenSorting.favorites, .views])
+func wallhavenPopularitySortingUsesDescendingOrderAndPreservesPagination(
+    sorting: WallhavenSorting
+) throws {
+    let request = try WallhavenService.searchRequest(
+        search: WallhavenSearch(sorting: sorting), page: 2, seed: "ABC123")
+    let parameters = queryValues(request)
+    #expect(parameters["sorting"] == (sorting == .favorites ? "favorites" : "views"))
+    #expect(parameters["order"] == "desc")
+    #expect(parameters["page"] == "2")
+    #expect(parameters["seed"] == nil)
+    #expect(parameters["topRange"] == nil)
+    #expect(parameters["purity"] == "100")
+}
+
+@Test(arguments: WallhavenSorting.allCases)
+func wallhavenAllSortingOptionsPersistInSettings(sorting: WallhavenSorting) throws {
+    var settings = AppSettings()
+    settings.currentSource = .wallhaven
+    settings.wallhavenSearch.sorting = sorting
+    let data = try JSONEncoder().encode(settings)
+    #expect(try JSONDecoder().decode(AppSettings.self, from: data) == settings)
+}
+
 @Test func wallhavenSettingsAreBackwardCompatibleAndContainNoCredentials() throws {
     var settings = try JSONDecoder().decode(
         AppSettings.self,
