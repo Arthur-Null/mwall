@@ -20,6 +20,7 @@ cp ".build/mwall-aether" "$MACOS_DIR/mwall-aether"
 cp "Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
 cp "Resources/MWall.entitlements" "$RESOURCES_DIR/MWall.entitlements"
 cp "Resources/Aether-notice.txt" "$RESOURCES_DIR/Aether-notice.txt"
+cp "Resources/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
 
 chmod +x "$MACOS_DIR/mwall" "$MACOS_DIR/mwall-aether"
 
