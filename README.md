@@ -58,7 +58,7 @@ shasum -a 256 -c MWall-v0.2.0-macos-arm64.zip.sha256
 - Unsplash 精选壁纸池，使用预览图和原图两级缓存。
 - Wallhaven 关键词搜索、分类、排序和分页，默认显示全年龄二次元壁纸。
 - 将壁纸应用到当前桌面或所有 macOS 桌面与 Spaces。
-- 收藏和最近使用的壁纸记录。
+- 收藏和最近使用的壁纸记录。收藏缩略图单独持久保存，不随图源缓存清理；旧收藏缺图时会尝试自动恢复。
 - 从壁纸中提取深色与浅色配色。
 - 导出 Kitty、Alacritty、WezTerm、Ghostty、iTerm2 主题及 Terminal.app 辅助脚本。
 - 尽可能自动重载 Kitty、WezTerm、iTerm2 导入及 Terminal.app 主题。

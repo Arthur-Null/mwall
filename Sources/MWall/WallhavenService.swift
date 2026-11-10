@@ -223,7 +223,8 @@ struct WallhavenService: Sendable {
             id: "wallhaven:\(photo.id)", url: destination,
             title: "Wallhaven \(photo.id) · \(photo.dimension_x)×\(photo.dimension_y)",
             kind: .wallhaven, source: "Wallhaven", fullResolutionURL: photo.path,
-            fullLocalURL: FileManager.default.fileExists(atPath: original.path) ? original : nil
+            fullLocalURL: FileManager.default.fileExists(atPath: original.path) ? original : nil,
+            previewRemoteURL: photo.thumbs.large
         )
     }
 

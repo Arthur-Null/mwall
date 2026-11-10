@@ -31,16 +31,22 @@ final class AppStore: ObservableObject {
     private let persistsChanges: Bool
     private let maxHistoryCount = 80
     private let wallhavenService: WallhavenService
+    private let favoriteImageStore: FavoriteImageStore
+    private var favoriteRecoveryTasks: [String: Task<Void, Never>] = [:]
     private var loadedWallhavenSearch: WallhavenSearch?
     private var wallhavenSeed: String?
 
     init(
         previewItems: [WallpaperItem]? = nil, previewHistory: [HistoryEntry] = [],
-        wallhavenService: WallhavenService = WallhavenService()
+        wallhavenService: WallhavenService = WallhavenService(),
+        favoriteImageStore: FavoriteImageStore = FavoriteImageStore(),
+        previewFavorites: [WallpaperItem] = []
     ) {
         self.wallhavenService = wallhavenService
+        self.favoriteImageStore = favoriteImageStore
         persistsChanges = previewItems == nil
         if let previewItems {
+            favorites = previewFavorites
             history = previewHistory
             if previewItems.first?.onlineSource == .wallhaven {
                 wallhavenWallpapers = previewItems
@@ -63,7 +69,7 @@ final class AppStore: ObservableObject {
 
     var usesThumbnailPreview: Bool {
         guard let item = currentWallpaper else { return false }
-        return item.fullResolutionURL != nil && previewURL(for: item) == item.url
+        return item.fullResolutionURL != nil && previewURL(for: item) != item.fullLocalURL
     }
 
     func selectWallpaper(_ item: WallpaperItem) { selectedWallpaperID = item.id }
@@ -95,7 +101,7 @@ final class AppStore: ObservableObject {
         if let full = item.fullLocalURL, FileManager.default.fileExists(atPath: full.path) {
             return full
         }
-        return item.url
+        return item.displayThumbnailURL
     }
 
     func resolveOriginal(_ item: WallpaperItem) async throws -> URL {
@@ -135,6 +141,7 @@ final class AppStore: ObservableObject {
         pruneUnsupportedThemeTargets()
         localFolders = loadLocalFolders()
         favorites = Persistence.load([WallpaperItem].self, from: StorePaths.favorites, fallback: [])
+        repairFavoriteThumbnails()
         history = Persistence.load([HistoryEntry].self, from: StorePaths.history, fallback: [])
         settings.launchAtLogin = LoginItemService.isEnabled
         hasWallhavenAPIKey = WallhavenCredentials.isStored()
@@ -215,6 +222,8 @@ final class AppStore: ObservableObject {
         } else if source == .wallhaven {
             restoreWallhavenCache()
             if wallhavenWallpapers.isEmpty { refreshWallhaven() }
+        } else if source == .favorite {
+            repairFavoriteThumbnails()
         }
         selectedWallpaperID = visibleWallpapers.first?.id
     }
@@ -222,12 +231,50 @@ final class AppStore: ObservableObject {
     func toggleFavorite(_ item: WallpaperItem) {
         if let index = favorites.firstIndex(where: { $0.id == item.id }) {
             favorites.remove(at: index)
+            favoriteRecoveryTasks.removeValue(forKey: item.id)?.cancel()
         } else {
             var favorite = item
             favorite.kind = .favorite
             favorites.insert(favorite, at: 0)
         }
-        Persistence.save(favorites, to: StorePaths.favorites)
+        saveFavorites()
+        repairFavoriteThumbnails()
+    }
+
+    private func saveFavorites() {
+        if persistsChanges { Persistence.save(favorites, to: StorePaths.favorites) }
+    }
+
+    func repairFavoriteThumbnails() {
+        var changed = false
+        for index in favorites.indices {
+            let item = favorites[index]
+            if let preserved = try? favoriteImageStore.preserveLocal(item) {
+                if preserved != item {
+                    favorites[index] = preserved
+                    changed = true
+                }
+                continue
+            }
+            guard favoriteRecoveryTasks[item.id] == nil else { continue }
+            favoriteRecoveryTasks[item.id] = Task { [weak self, favoriteImageStore] in
+                do {
+                    let recovered = try await favoriteImageStore.recover(item)
+                    guard !Task.isCancelled, let self,
+                        let index = self.favorites.firstIndex(where: { $0.id == item.id })
+                    else { return }
+                    // Merge only the thumbnail: the original may have downloaded meanwhile.
+                    self.favorites[index].thumbnailURL = recovered.thumbnailURL
+                    self.saveFavorites()
+                } catch {
+                    if !Task.isCancelled {
+                        self?.lastMessage = "部分收藏预览暂时无法恢复，重新进入收藏可重试。"
+                    }
+                }
+                if !Task.isCancelled { self?.favoriteRecoveryTasks[item.id] = nil }
+            }
+        }
+        if changed { saveFavorites() }
     }
 
     func isFavorite(_ item: WallpaperItem) -> Bool {

@@ -47,3 +47,7 @@ _Avoid_: 自造 Files = [{ relative = ... }]
 **已应用壁纸副本**:
 应用桌面时拷贝到 `~/Library/Application Support/MWall/Applied/current-<uuid>.<ext>`。必须每次换新文件名：若反复覆盖同一个 `current.jpg`，`NSWorkspace` / WallpaperAgent 会认为 URL 未变而不刷新桌面。桌面引用应指向这份副本，而不是 Unsplash 的 Caches 原图。
 _Avoid_: 固定 current.jpg 原地覆盖, 直接把 Caches/Unsplash/Full 路径写入 Index.plist
+
+**收藏缩略图**:
+收藏图片的预览是持久数据，保存在 `~/Library/Application Support/MWall/Favorites`，不参与图源缓存淘汰。`thumbnailURL` 只供展示，`url` 和原图字段保留原用途。旧收藏在启动或进入收藏页时迁移：优先读取本地缩略图或原图，缺失时从原图源恢复预览；网络失败保留收藏条目，下次进入收藏可重试。
+_Avoid_: 把收藏缓存路径当作持久副本, 用缩略图覆盖原图路径

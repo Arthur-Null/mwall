@@ -101,7 +101,8 @@ enum UnsplashService {
             kind: .unsplash,
             source: "Photo by \(photo.user.name)",
             fullResolutionURL: photo.urls.raw,
-            downloadLocation: photo.links.downloadLocation
+            downloadLocation: photo.links.downloadLocation,
+            previewRemoteURL: sizedURL(from: photo.urls.raw, width: 600, height: 338, quality: 75)
         )
     }
 

@@ -31,6 +31,14 @@ struct WallpaperItem: Identifiable, Codable, Hashable, Sendable {
     var fullResolutionURL: URL?
     var downloadLocation: URL?
     var fullLocalURL: URL?
+    var thumbnailURL: URL?
+    var previewRemoteURL: URL?
+
+    var displayThumbnailURL: URL {
+        [thumbnailURL, url, fullLocalURL].compactMap { $0 }.first {
+            $0.isFileURL && FileManager.default.fileExists(atPath: $0.path)
+        } ?? url
+    }
 
     // Favorites and history change the display kind, not the original provider.
     var onlineSource: WallpaperKind? {
@@ -47,7 +55,9 @@ struct WallpaperItem: Identifiable, Codable, Hashable, Sendable {
         source: String? = nil,
         fullResolutionURL: URL? = nil,
         downloadLocation: URL? = nil,
-        fullLocalURL: URL? = nil
+        fullLocalURL: URL? = nil,
+        thumbnailURL: URL? = nil,
+        previewRemoteURL: URL? = nil
     ) {
         self.id = id ?? url.standardizedFileURL.path
         self.url = url
@@ -57,6 +67,8 @@ struct WallpaperItem: Identifiable, Codable, Hashable, Sendable {
         self.fullResolutionURL = fullResolutionURL
         self.downloadLocation = downloadLocation
         self.fullLocalURL = fullLocalURL
+        self.thumbnailURL = thumbnailURL
+        self.previewRemoteURL = previewRemoteURL
     }
 }
 
@@ -226,6 +238,10 @@ enum StorePaths {
 
     static var favorites: URL {
         appSupport.appendingPathComponent("favorites.json")
+    }
+
+    static var favoriteImages: URL {
+        appSupport.appendingPathComponent("Favorites", isDirectory: true)
     }
 
     static var history: URL {

@@ -468,7 +468,7 @@ private struct WallpaperTile: View {
                 Button {
                     store.selectWallpaper(item)
                 } label: {
-                    WallpaperThumbnail(url: item.url)
+                    WallpaperThumbnail(url: item.displayThumbnailURL)
                         .frame(height: 100)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .overlay(
