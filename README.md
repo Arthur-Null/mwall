@@ -13,9 +13,11 @@ swift run mwall
 
 应用启动后显示在菜单栏，不显示 Dock 图标。
 
-启用“所有桌面”时，MWall 会更新 macOS 壁纸存储，让不可见的 Spaces 也使用同一张图片，再通过 `NSWorkspace` 刷新可见显示器。较旧的 macOS 可能回退到 System Events，并请求自动化权限。
+应用壁纸时，MWall 同时把系统“照片”屏保设置为这张图片，不改变屏保启动时间或锁屏密码设置。图片会转换为 PNG，存放在 `~/Pictures/MWall Screen Saver/` 下的独立目录；每次更换图片都会更新屏保来源，成功后清理旧副本。
 
-应用壁纸前，MWall 会将图片复制到 `~/Library/Application Support/MWall/Applied/` 下的独立文件，再写入系统壁纸索引。每次使用新路径，既能触发桌面刷新，也能避免清理 Unsplash 缓存时影响正在使用的壁纸。索引中的 `Files` 保持为空；旧资料中提到的 `[{ relative = ... }]` 结构会导致当前 macOS 的 WallpaperAgent 无法加载图片。
+启用“所有桌面”时，MWall 会更新全部显示器和不可见 Spaces 的壁纸；关闭时只更换当前显示器的壁纸，屏保仍同步使用本次图片。程序兼容系统索引的 `Linked` 与 `Desktop` 结构，将壁纸与屏保分别配置为 `Desktop` 和 `Idle`，避免“自动”屏保回退到系统航拍画面。写入后刷新系统壁纸代理，再通过 `NSWorkspace` 注册可见显示器的图片。系统壁纸索引或照片屏保组件缺失时会明确报错。
+
+应用壁纸前，MWall 会将图片复制到 `~/Library/Application Support/MWall/Applied/` 下的独立文件，再写入系统壁纸索引。每次使用新路径，既能触发桌面刷新，也能避免清理 Unsplash 缓存时影响正在使用的壁纸。只有成功应用到所有桌面后才清理旧的壁纸副本；应用失败或仅更换当前桌面时会保留旧文件。索引中的 `Files` 保持为空；旧资料中提到的 `[{ relative = ... }]` 结构会导致当前 macOS 的 WallpaperAgent 无法加载图片。
 
 ## 构建应用包
 

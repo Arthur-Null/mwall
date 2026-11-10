@@ -9,21 +9,51 @@ enum WallpaperService {
     /// Returns the stable file URL actually used by the desktop / wallpaper store.
     @discardableResult
     static func setDesktopImage(_ url: URL, allScreens: Bool) throws -> URL {
-        let appliedURL = try installAppliedWallpaper(url)
-        if allScreens {
-            try setScreenImages(appliedURL, screens: NSScreen.screens)
-            try setEveryDesktopImage(appliedURL)
-            restartWallpaperAgent()
-            return appliedURL
+        guard FileManager.default.fileExists(atPath: WallpaperStore.systemIndexURL.path),
+              FileManager.default.fileExists(atPath: ScreenSaverService.moduleURL.path) else {
+            throw NSError(domain: "MWall.Wallpaper", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "无法找到系统壁纸索引或照片屏保组件"
+            ])
         }
-
-        try setScreenImages(appliedURL, screens: [NSScreen.main].compactMap { $0 })
+        let appliedURL = try installAppliedWallpaper(url)
+        let screenSaverFolder = ScreenSaverService.imageDirectory
+            .appendingPathComponent("current-\(UUID().uuidString)", isDirectory: true)
+        try ScreenSaverService.prepareImage(appliedURL, into: screenSaverFolder)
+        try applyInstalledWallpaper(
+            setScreens: {
+                try setScreenImages(
+                    appliedURL, screens: allScreens ? NSScreen.screens : [NSScreen.main].compactMap { $0 })
+            },
+            updateStore: {
+                _ = try WallpaperStore.updateSystemIndex(
+                    imageURL: appliedURL, screenSaverModuleURL: ScreenSaverService.moduleURL,
+                    updateDesktopImages: allScreens)
+            },
+            configureScreenSaver: { try ScreenSaverService.configurePhotoSource(folder: screenSaverFolder) },
+            restartAgent: restartWallpaperAgent
+        )
+        ScreenSaverService.removeOldImages(keeping: screenSaverFolder)
+        if allScreens {
+            cleanupAppliedWallpapers(keeping: appliedURL)
+        }
         return appliedURL
     }
 
+    static func applyInstalledWallpaper(
+        setScreens: () throws -> Void,
+        updateStore: () throws -> Void,
+        configureScreenSaver: () throws -> Void,
+        restartAgent: () -> Void
+    ) throws {
+        try updateStore()
+        try configureScreenSaver()
+        restartAgent()
+        // Register with NSWorkspace after reloading the store, so Settings keeps
+        // the native image selection. Other Spaces retain their desktop in single-screen mode.
+        try setScreens()
+    }
     /// Copies `sourceURL` into `directory` (default: `StorePaths.applied`) so Unsplash cache
-    /// cleanup cannot delete the live desktop image, and System Settings can keep a resolvable
-    /// Files reference.
+    /// cleanup cannot delete the live desktop image or its native Settings reference.
     ///
     /// Each apply uses a unique `current-<uuid>.<ext>` name. Replacing the same `current.jpg`
     /// path in place leaves `NSWorkspace` / WallpaperAgent on an unchanged URL, so the desktop
@@ -51,20 +81,21 @@ enum WallpaperService {
 
         try fm.copyItem(at: sourceURL, to: destination)
 
-        let keepName = destination.lastPathComponent
-        if let leftovers = try? fm.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) {
-            for url in leftovers where url.lastPathComponent != keepName {
-                try? fm.removeItem(at: url)
-            }
-        }
-
         return destination
     }
 
+    // Only after a successful all-desktop apply can older images be unreferenced.
+    // Single-screen applications and failures must preserve the other desktop images.
+    static func cleanupAppliedWallpapers(keeping destination: URL) {
+        let directory = destination.deletingLastPathComponent()
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]) else { return }
+        for file in files where file.lastPathComponent != destination.lastPathComponent && file.lastPathComponent.hasPrefix("current-") {
+            guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+            try? FileManager.default.removeItem(at: file)
+        }
+    }
     private static func setScreenImages(_ url: URL, screens: [NSScreen]) throws {
         let options: [NSWorkspace.DesktopImageOptionKey: Any] = [
             .imageScaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue,
@@ -72,55 +103,6 @@ enum WallpaperService {
         ]
         for screen in screens {
             try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: options)
-        }
-    }
-
-    private static func setEveryDesktopImage(_ url: URL) throws {
-        if FileManager.default.fileExists(atPath: WallpaperStore.systemIndexURL.path) {
-            _ = try WallpaperStore.updateSystemIndex(imageURL: url)
-            return
-        }
-
-        let script = """
-        tell application "System Events"
-            repeat with currentDesktop in desktops
-                set picture of currentDesktop to \(appleScriptString(url.path))
-            end repeat
-        end tell
-        """
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", script]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        let deadline = Date().addingTimeInterval(8)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.1)
-        }
-        if process.isRunning {
-            process.terminate()
-            throw NSError(
-                domain: "MWall.Wallpaper",
-                code: 124,
-                userInfo: [NSLocalizedDescriptionKey: "设置所有桌面壁纸超时，请确认已允许 MWall 控制 System Events。"]
-            )
-        }
-
-        guard process.terminationStatus == 0 else {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw NSError(
-                domain: "MWall.Wallpaper",
-                code: Int(process.terminationStatus),
-                userInfo: [
-                    NSLocalizedDescriptionKey: output?.isEmpty == false
-                        ? output!
-                        : "无法设置所有桌面壁纸，请确认已允许 MWall 控制 System Events。"
-                ]
-            )
         }
     }
 
@@ -136,13 +118,6 @@ enum WallpaperService {
             try? process.run()
             process.waitUntilExit()
         }
-    }
-
-    private static func appleScriptString(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
     }
 
     static func imageFiles(in folder: URL) -> [URL] {

@@ -41,7 +41,7 @@ _Avoid_: 当前桌面, 当前显示器, 只刷新 NSWorkspace screen
 _Avoid_: relative = file:///..., 自造配置结构
 
 **壁纸 Files**:
-`Index.plist` 中 `Desktop.Content.Choices[0].Files` 在部分旧文档里写成 `[{ relative = file:///... }]`。当前 macOS 上这样写会导致 WallpaperAgent 不打开图片文件（桌面路径已变但画面不换）。MWall 保持 `Files = []`，只写 Configuration。系统设置墙纸页因此可能对第三方路径显示黑底缺失占位，这是已知取舍。
+`Index.plist` 中 `Desktop.Content.Choices[0].Files` 保持为空，不手工填入旧资料中的 `[{ relative = file:///... }]`。此前该写法曾导致桌面路径更新但画面不换。设置页预览不能只靠修改索引恢复：所有桌面的应用顺序必须是写索引、重载墙纸代理，最后调用 `NSWorkspace.setDesktopImageURL` 注册当前屏幕。macOS 27.0（26A428）上已复现旧顺序导致重开设置后显示黑底问号，并验证新顺序在重开设置后保留正确预览。
 _Avoid_: 自造 Files = [{ relative = ... }]
 
 **已应用壁纸副本**:

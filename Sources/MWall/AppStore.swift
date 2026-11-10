@@ -261,7 +261,7 @@ final class AppStore: ObservableObject {
                 var applied = item
                 applied.fullLocalURL = appliedURL
                 addHistory(applied)
-                lastMessage = "已应用壁纸"
+                lastMessage = "已应用壁纸与屏保"
                 if options.applyThemeAfterWallpaperChange && !options.enabledThemeTargets.isEmpty {
                     let palettes = try await PaletteService.shared.generate(
                         from: appliedURL, style: options.paletteStyle, folders: localFolders)
@@ -270,7 +270,7 @@ final class AppStore: ObservableObject {
                         targets: options.enabledThemeTargets,
                         reloadTerminals: options.reloadTerminalsAfterThemeChange)
                     lastMessage = report.message(
-                        "已应用壁纸与\(options.paletteStyle.title)主题，共 \(report.writtenFiles.count) 个文件")
+                        "已应用壁纸、屏保与\(options.paletteStyle.title)主题，共 \(report.writtenFiles.count) 个文件")
                 }
                 cleanupCacheSilently()
             } catch {

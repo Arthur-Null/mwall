@@ -59,6 +59,8 @@ import Testing
     #expect(installedPNG.lastPathComponent.hasPrefix("current-"))
     #expect(installedPNG.pathExtension == "png")
     #expect(installedPNG.path != installed.path)
+    #expect(FileManager.default.fileExists(atPath: installed.path))
+    WallpaperService.cleanupAppliedWallpapers(keeping: installedPNG)
     #expect(!FileManager.default.fileExists(atPath: installed.path))
     #expect(try Data(contentsOf: installedPNG) == Data([0x89, 0x50, 0x4E, 0x47]))
 }
@@ -78,7 +80,7 @@ import Testing
     let first = try WallpaperService.installAppliedWallpaper(firstSource, into: applied)
     let second = try WallpaperService.installAppliedWallpaper(secondSource, into: applied)
     #expect(first.path != second.path)
-    #expect(!FileManager.default.fileExists(atPath: first.path))
+    #expect(FileManager.default.fileExists(atPath: first.path))
     #expect(try Data(contentsOf: second) == Data([0xFF, 0xD8, 0xFF, 0xDA]))
 }
 
