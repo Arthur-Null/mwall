@@ -34,7 +34,7 @@ import Testing
     #expect(queryValues(random)["seed"] == "ABC123")
     #expect(queryValues(random)["page"] == "2")
     let popular = try WallhavenService.searchRequest(
-        search: WallhavenSearch(category: .all, sorting: .toplist), page: 0, seed: "ABC123")
+        search: WallhavenSearch(categories: Set(WallhavenCategory.allCases), sorting: .toplist), page: 0, seed: "ABC123")
     #expect(queryValues(popular)["seed"] == nil)
     #expect(queryValues(popular)["categories"] == "111")
     #expect(queryValues(popular)["topRange"] == "1M")
@@ -75,10 +75,125 @@ func wallhavenAllSortingOptionsPersistInSettings(sorting: WallhavenSorting) thro
     #expect(settings.wallhavenCacheLimitMB == 600)
     settings.currentSource = .wallhaven
     settings.wallhavenSearch = WallhavenSearch(
-        query: "mountain", category: .general, sorting: .latest)
+        query: "mountain", categories: [.general], sorting: .latest)
     let data = try JSONEncoder().encode(settings)
     #expect(try JSONDecoder().decode(AppSettings.self, from: data) == settings)
     #expect(!String(decoding: data, as: UTF8.self).contains("wallhavenAPIKey"))
+}
+
+@Test func wallhavenRequestCarriesEveryWebFilter() throws {
+    var search = WallhavenSearch(
+        query: "+sky -city", categories: [.general, .people], sorting: .toplist)
+    search.purity = [.sfw, .sketchy]
+    search.order = .asc
+    search.topRange = .week
+    search.ratios = ["21x9", "16x9", "landscape"]
+    search.color = "336600"
+    search.resolutionMode = .exact
+    search.resolutions = ["3840x2160", "2560x1440", "bad"]
+    let parameters = queryValues(try WallhavenService.searchRequest(search: search))
+    #expect(parameters["q"] == "+sky -city")
+    #expect(parameters["categories"] == "101")
+    #expect(parameters["purity"] == "110")
+    #expect(parameters["sorting"] == "toplist")
+    #expect(parameters["order"] == "asc")
+    #expect(parameters["topRange"] == "1w")
+    #expect(parameters["ratios"] == "landscape,16x9,21x9")
+    #expect(parameters["colors"] == "336600")
+    #expect(parameters["resolutions"] == "2560x1440,3840x2160")
+    #expect(parameters["atleast"] == nil)
+
+    search.resolutionMode = .atLeast
+    search.atLeast = ""
+    search.ratios = []
+    search.color = nil
+    search.categories = []
+    let open = queryValues(try WallhavenService.searchRequest(search: search))
+    #expect(open["atleast"] == nil && open["resolutions"] == nil)
+    #expect(open["ratios"] == nil && open["colors"] == nil)
+    #expect(open["categories"] == "111")
+}
+
+@Test func wallhavenNSFWRequiresAnAPIKey() throws {
+    var search = WallhavenSearch()
+    search.purity = [.nsfw]
+    #expect(queryValues(try WallhavenService.searchRequest(search: search))["purity"] == "100")
+    let keyed = try WallhavenService.searchRequest(search: search, apiKey: "fixture-secret")
+    #expect(queryValues(keyed)["purity"] == "001")
+    search.purity = [.sketchy, .nsfw]
+    #expect(queryValues(try WallhavenService.searchRequest(search: search))["purity"] == "010")
+}
+
+@Test func wallhavenLegacySearchSettingsMigrate() throws {
+    let legacy = try JSONDecoder().decode(
+        WallhavenSearch.self,
+        from: Data(#"{"query":"mountain","category":"all","sorting":"toplist"}"#.utf8))
+    #expect(legacy.query == "mountain" && legacy.sorting == .toplist)
+    #expect(legacy.categories == Set(WallhavenCategory.allCases))
+    #expect(legacy.purity == [.sfw] && legacy.ratios == ["landscape"])
+    #expect(legacy.atLeast == "1920x1080" && legacy.resolutionMode == .atLeast)
+    let people = try JSONDecoder().decode(
+        WallhavenSearch.self, from: Data(#"{"query":"x","category":"people"}"#.utf8))
+    #expect(people.categories == [.people] && people.sorting == .random)
+    var search = WallhavenSearch(query: "sky")
+    search.color = "ffffff"
+    search.resolutions = ["1920x1080"]
+    #expect(
+        try JSONDecoder().decode(WallhavenSearch.self, from: JSONEncoder().encode(search))
+            == search)
+    #expect(search.hasCustomFilters && search.resettingFilters() == WallhavenSearch(query: "sky"))
+}
+
+@Test func wallhavenWebURLImportsAllFilters() throws {
+    let search = try #require(
+        WallhavenSearch(
+            webURL: "https://wallhaven.cc/search?q=id%3A37&categories=110&purity=110"
+                + "&atleast=2560x1440&ratios=16x9%2C21x9&colors=CC0000&sorting=toplist"
+                + "&order=asc&topRange=3M&page=2"))
+    #expect(search.query == "id:37")
+    #expect(search.categories == [.general, .anime])
+    #expect(search.purity == [.sfw, .sketchy])
+    #expect(search.atLeast == "2560x1440" && search.resolutionMode == .atLeast)
+    #expect(search.ratios == ["16x9", "21x9"])
+    #expect(search.color == "cc0000")
+    #expect(search.sorting == .toplist && search.order == .asc && search.topRange == .threeMonths)
+
+    let exact = try #require(
+        WallhavenSearch(webURL: "https://wallhaven.cc/search?resolutions=3840x2160,evil&sorting=hot"))
+    #expect(exact.resolutionMode == .exact && exact.resolutions == ["3840x2160"])
+    #expect(exact.sorting == .hot && exact.atLeast.isEmpty && exact.ratios.isEmpty)
+    #expect(exact.categories == Set(WallhavenCategory.allCases) && exact.purity == [.sfw])
+    #expect(WallhavenSearch(webURL: "https://example.com/search?q=sky") == nil)
+    #expect(WallhavenSearch(webURL: "https://wallhaven.cc/w/abc123") == nil)
+    #expect(WallhavenSearch(webURL: "sky") == nil)
+}
+
+@Test func wallhavenLocalFiltersFollowTheSearch() async throws {
+    let root = temporaryCache()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let photos = [
+        photo("abc123"), photo("aaa111", purity: "sketchy"), photo("bbb222", purity: "nsfw"),
+        photo("ccc333", category: "people"), photo("ddd444", width: 1080, height: 1920),
+        photo("eee555", width: 3840, height: 2160),
+    ]
+    let mock = try MockWallhaven(body: responseBody(photos))
+    let service = WallhavenService(directory: root, load: { try await mock.load($0) })
+    var search = WallhavenSearch(categories: [.anime, .people])
+    search.purity = [.sfw, .sketchy, .nsfw]
+    search.ratios = ["portrait"]
+    search.atLeast = ""
+    let portrait = try await service.fetch(search: search)
+    #expect(portrait.items.map(\.id) == ["wallhaven:ddd444"])
+    search.ratios = []
+    search.resolutionMode = .exact
+    search.resolutions = ["3840x2160"]
+    let exact = try await service.fetch(search: search, apiKey: "fixture-secret")
+    #expect(exact.items.map(\.id) == ["wallhaven:eee555"])
+    search.resolutions = []
+    let keyed = try await service.fetch(search: search, apiKey: "fixture-secret")
+    #expect(keyed.items.count == 6)
+    let guest = try await service.fetch(search: search)
+    #expect(!guest.items.map(\.id).contains("wallhaven:bbb222") && guest.items.count == 5)
 }
 
 @Test func wallhavenCachesPreviewsAndOriginalsWithoutLeakingKeys() async throws {

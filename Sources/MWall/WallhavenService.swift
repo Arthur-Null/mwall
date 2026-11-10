@@ -2,48 +2,269 @@ import Foundation
 import ImageIO
 
 enum WallhavenCategory: String, Codable, CaseIterable, Identifiable, Sendable {
-    case anime, general, people, all
+    case general, anime, people
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .anime: "二次元"
         case .general: "综合"
+        case .anime: "二次元"
         case .people: "人物"
-        case .all: "全部"
         }
     }
-    var parameter: String {
+}
+
+enum WallhavenPurity: String, Codable, CaseIterable, Identifiable, Sendable {
+    case sfw, sketchy, nsfw
+    var id: String { rawValue }
+    var title: String {
         switch self {
-        case .anime: "010"
-        case .general: "100"
-        case .people: "001"
-        case .all: "111"
+        case .sfw: "SFW"
+        case .sketchy: "Sketchy"
+        case .nsfw: "NSFW"
         }
     }
 }
 
 enum WallhavenSorting: String, Codable, CaseIterable, Identifiable, Sendable {
-    case random
     case latest = "date_added"
-    case toplist
-    case favorites
+    case relevance
+    case random
     case views
+    case favorites
+    case toplist
+    case hot
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .random: "随机"
         case .latest: "最新"
-        case .toplist: "热门"
-        case .favorites: "收藏最多"
+        case .relevance: "相关度"
+        case .random: "随机"
         case .views: "浏览最多"
+        case .favorites: "收藏最多"
+        case .toplist: "排行榜"
+        case .hot: "最热"
+        }
+    }
+}
+
+enum WallhavenOrder: String, Codable, CaseIterable, Identifiable, Sendable {
+    case desc, asc
+    var id: String { rawValue }
+    var title: String { self == .desc ? "降序" : "升序" }
+}
+
+enum WallhavenTopRange: String, Codable, CaseIterable, Identifiable, Sendable {
+    case day = "1d", threeDays = "3d", week = "1w", month = "1M"
+    case threeMonths = "3M", sixMonths = "6M", year = "1y"
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .day: "1 天"
+        case .threeDays: "3 天"
+        case .week: "1 周"
+        case .month: "1 个月"
+        case .threeMonths: "3 个月"
+        case .sixMonths: "6 个月"
+        case .year: "1 年"
+        }
+    }
+}
+
+enum WallhavenResolutionMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case atLeast, exact
+    var id: String { rawValue }
+    var title: String { self == .atLeast ? "最低" : "精确" }
+}
+
+/// Option values mirror the wallhaven.cc search toolbar.
+enum WallhavenOptions {
+    static let resolutionGroups: [(title: String, values: [String])] = [
+        ("超宽", ["2560x1080", "3440x1440", "3840x1600"]),
+        ("16:9", ["1280x720", "1600x900", "1920x1080", "2560x1440", "3840x2160"]),
+        ("16:10", ["1280x800", "1600x1000", "1920x1200", "2560x1600", "3840x2400"]),
+        ("4:3", ["1280x960", "1600x1200", "1920x1440", "2560x1920", "3840x2880"]),
+        ("5:4", ["1280x1024", "1600x1280", "1920x1536", "2560x2048", "3840x3072"]),
+    ]
+    static let ratioGroups: [(title: String, values: [String])] = [
+        ("方向", ["landscape", "portrait"]),
+        ("宽屏", ["16x9", "16x10"]),
+        ("超宽", ["21x9", "32x9", "48x9"]),
+        ("竖屏", ["9x16", "10x16", "9x18"]),
+        ("方形", ["1x1", "3x2", "4x3", "5x4"]),
+    ]
+    static let colors = [
+        "660000", "990000", "cc0000", "cc3333", "ea4c88", "993399", "663399", "333399",
+        "0066cc", "0099cc", "66cccc", "77cc33", "669900", "336600", "666600", "999900",
+        "cccc33", "ffff00", "ffcc33", "ff9900", "ff6600", "cc6633", "996633", "663300",
+        "000000", "999999", "cccccc", "ffffff", "424153",
+    ]
+    static var resolutions: [String] { resolutionGroups.flatMap(\.values) }
+    static var ratios: [String] { ratioGroups.flatMap(\.values) }
+
+    static func resolutionTitle(_ value: String) -> String {
+        value.replacingOccurrences(of: "x", with: "×")
+    }
+
+    static func ratioTitle(_ value: String) -> String {
+        switch value {
+        case "landscape": "横屏"
+        case "portrait": "竖屏"
+        default: value.replacingOccurrences(of: "x", with: ":")
         }
     }
 }
 
 struct WallhavenSearch: Codable, Equatable, Sendable {
     var query = ""
-    var category: WallhavenCategory = .anime
+    var categories: Set<WallhavenCategory> = [.anime]
+    var purity: Set<WallhavenPurity> = [.sfw]
     var sorting: WallhavenSorting = .random
+    var order: WallhavenOrder = .desc
+    var topRange: WallhavenTopRange = .month
+    var resolutionMode: WallhavenResolutionMode = .atLeast
+    /// Empty means no minimum.
+    var atLeast = "1920x1080"
+    var resolutions: Set<String> = []
+    /// Empty means every aspect ratio.
+    var ratios: Set<String> = ["landscape"]
+    var color: String?
+
+    init(
+        query: String = "", categories: Set<WallhavenCategory> = [.anime],
+        sorting: WallhavenSorting = .random
+    ) {
+        self.query = query
+        self.categories = categories
+        self.sorting = sorting
+    }
+
+    /// Keeps the query and resets every filter to its default.
+    func resettingFilters() -> WallhavenSearch {
+        WallhavenSearch(query: query)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case query, categories, purity, sorting, order, topRange
+        case resolutionMode, atLeast, resolutions, ratios, color
+    }
+
+    private enum LegacyKeys: String, CodingKey { case category }
+
+    // Every field is optional so older settings and cache metadata keep their query.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        query = try c.decodeIfPresent(String.self, forKey: .query) ?? ""
+        if let categories = try? c.decodeIfPresent(Set<WallhavenCategory>.self, forKey: .categories),
+            !categories.isEmpty
+        {
+            self.categories = categories
+        } else {
+            let legacy = try decoder.container(keyedBy: LegacyKeys.self)
+            switch try? legacy.decodeIfPresent(String.self, forKey: .category) {
+            case "all": categories = Set(WallhavenCategory.allCases)
+            case let value?: categories = WallhavenCategory(rawValue: value).map { [$0] } ?? [.anime]
+            case nil: categories = [.anime]
+            }
+        }
+        purity = (try? c.decodeIfPresent(Set<WallhavenPurity>.self, forKey: .purity))
+            .flatMap { $0?.isEmpty == false ? $0 : nil } ?? [.sfw]
+        sorting = (try? c.decodeIfPresent(WallhavenSorting.self, forKey: .sorting)) ?? .random
+        order = (try? c.decodeIfPresent(WallhavenOrder.self, forKey: .order)) ?? .desc
+        topRange = (try? c.decodeIfPresent(WallhavenTopRange.self, forKey: .topRange)) ?? .month
+        resolutionMode =
+            (try? c.decodeIfPresent(WallhavenResolutionMode.self, forKey: .resolutionMode))
+            ?? .atLeast
+        atLeast = (try? c.decodeIfPresent(String.self, forKey: .atLeast)) ?? "1920x1080"
+        resolutions = (try? c.decodeIfPresent(Set<String>.self, forKey: .resolutions)) ?? []
+        ratios = (try? c.decodeIfPresent(Set<String>.self, forKey: .ratios)) ?? ["landscape"]
+        color = try? c.decodeIfPresent(String.self, forKey: .color)
+    }
+
+    /// Parses a wallhaven.cc search or API URL into a search. Returns nil for other URLs.
+    init?(webURL text: String) {
+        guard let components = URLComponents(
+            string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+            components.scheme == "https" || components.scheme == "http",
+            components.host == "wallhaven.cc" || components.host == "www.wallhaven.cc",
+            components.path == "/search" || components.path == "/api/v1/search"
+        else { return nil }
+        var values: [String: String] = [:]
+        for item in components.queryItems ?? [] { values[item.name] = item.value ?? "" }
+        self.init(query: values["q"] ?? "")
+        // The website omits parameters that match the account defaults, which are all-on.
+        categories = Self.bits(values["categories"], WallhavenCategory.allCases)
+            ?? Set(WallhavenCategory.allCases)
+        purity = Self.bits(values["purity"], WallhavenPurity.allCases) ?? [.sfw]
+        sorting = values["sorting"].flatMap(WallhavenSorting.init(rawValue:)) ?? .latest
+        order = values["order"].flatMap(WallhavenOrder.init(rawValue:)) ?? .desc
+        topRange = values["topRange"].flatMap(WallhavenTopRange.init(rawValue:)) ?? .month
+        let exact = Self.list(values["resolutions"]).filter(Self.isResolution)
+        if !exact.isEmpty {
+            resolutionMode = .exact
+            resolutions = exact
+        }
+        atLeast = values["atleast"].flatMap { Self.isResolution($0) ? $0 : nil } ?? ""
+        ratios = Self.list(values["ratios"]).filter(Self.isRatio)
+        color = values["colors"].map { $0.lowercased() }.flatMap { Self.isColor($0) ? $0 : nil }
+    }
+
+    static func isResolution(_ value: String) -> Bool {
+        value.wholeMatch(of: /[1-9][0-9]{2,4}x[1-9][0-9]{2,4}/) != nil
+    }
+
+    static func isRatio(_ value: String) -> Bool {
+        value == "landscape" || value == "portrait"
+            || value.wholeMatch(of: /[1-9][0-9]?x[1-9][0-9]?/) != nil
+    }
+
+    static func isColor(_ value: String) -> Bool {
+        value.wholeMatch(of: /[0-9a-f]{6}/) != nil
+    }
+
+    /// Short description of the active filters for the result footer.
+    var summary: String {
+        var parts = [WallhavenPurity.allCases.filter(purity.contains).map(\.title).joined(separator: "/")]
+        if categories.count < WallhavenCategory.allCases.count {
+            parts.append(WallhavenCategory.allCases.filter(categories.contains).map(\.title)
+                .joined(separator: "/"))
+        }
+        if !ratios.isEmpty {
+            parts.append(WallhavenOptions.ratios.filter(ratios.contains)
+                .map(WallhavenOptions.ratioTitle).joined(separator: ", "))
+        }
+        switch resolutionMode {
+        case .atLeast where !atLeast.isEmpty:
+            parts.append("≥\(WallhavenOptions.resolutionTitle(atLeast))")
+        case .exact where !resolutions.isEmpty:
+            parts.append(resolutions.sorted(by: Self.resolutionOrder)
+                .map(WallhavenOptions.resolutionTitle).joined(separator: ", "))
+        default: break
+        }
+        if let color { parts.append("#\(color)") }
+        return parts.joined(separator: " · ")
+    }
+
+    var hasCustomFilters: Bool { resettingFilters() != self }
+
+    fileprivate static func bits<T: Hashable>(_ value: String?, _ cases: [T]) -> Set<T>? {
+        guard let value, value.count == cases.count, value.allSatisfy({ $0 == "0" || $0 == "1" })
+        else { return nil }
+        let set = Set(zip(value, cases).filter { $0.0 == "1" }.map(\.1))
+        return set.isEmpty ? nil : set
+    }
+
+    fileprivate static func bitString<T: Hashable>(_ set: Set<T>, _ cases: [T]) -> String {
+        String(cases.map { set.contains($0) ? "1" : "0" })
+    }
+
+    private static func list(_ value: String?) -> Set<String> {
+        Set((value ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+    }
+
+    static func resolutionOrder(_ a: String, _ b: String) -> Bool {
+        let all = WallhavenOptions.resolutions
+        return (all.firstIndex(of: a) ?? .max, a) < (all.firstIndex(of: b) ?? .max, b)
+    }
 }
 
 struct WallhavenPage: Codable, Sendable {
@@ -93,29 +314,53 @@ struct WallhavenService: Sendable {
     static func searchRequest(
         search: WallhavenSearch, page: Int = 1, seed: String? = nil, apiKey: String = ""
     ) throws -> URLRequest {
+        let key = try normalizedAPIKey(apiKey)
         var url = URLComponents(string: "https://wallhaven.cc/api/v1/search")!
-        url.queryItems = [
+        // Explicit filters prevent authenticated account defaults from changing the results.
+        var items = [
             URLQueryItem(
                 name: "q", value: search.query.trimmingCharacters(in: .whitespacesAndNewlines)),
-            URLQueryItem(name: "categories", value: search.category.parameter),
-            // Explicit filters prevent authenticated account defaults from changing the results.
-            URLQueryItem(name: "purity", value: "100"),
-            URLQueryItem(name: "ratios", value: "landscape"),
-            URLQueryItem(name: "atleast", value: "1920x1080"),
+            URLQueryItem(
+                name: "categories",
+                value: WallhavenSearch.bitString(
+                    search.effectiveCategories, WallhavenCategory.allCases)),
+            URLQueryItem(
+                name: "purity",
+                value: WallhavenSearch.bitString(
+                    search.effectivePurity(hasAPIKey: !key.isEmpty), WallhavenPurity.allCases)),
             URLQueryItem(name: "sorting", value: search.sorting.rawValue),
-            URLQueryItem(name: "order", value: "desc"),
+            URLQueryItem(name: "order", value: search.order.rawValue),
             URLQueryItem(name: "page", value: "\(max(1, page))"),
         ]
+        switch search.resolutionMode {
+        case .atLeast where WallhavenSearch.isResolution(search.atLeast):
+            items.append(URLQueryItem(name: "atleast", value: search.atLeast))
+        case .exact where !search.validResolutions.isEmpty:
+            items.append(
+                URLQueryItem(
+                    name: "resolutions",
+                    value: search.validResolutions.sorted(by: WallhavenSearch.resolutionOrder)
+                        .joined(separator: ",")))
+        default: break
+        }
+        let ratios = WallhavenOptions.ratios.filter(search.ratios.contains)
+            + search.ratios.filter { !WallhavenOptions.ratios.contains($0) && WallhavenSearch.isRatio($0) }.sorted()
+        if !ratios.isEmpty {
+            items.append(URLQueryItem(name: "ratios", value: ratios.joined(separator: ",")))
+        }
+        if let color = search.color, WallhavenSearch.isColor(color) {
+            items.append(URLQueryItem(name: "colors", value: color))
+        }
         if search.sorting == .toplist {
-            url.queryItems?.append(URLQueryItem(name: "topRange", value: "1M"))
+            items.append(URLQueryItem(name: "topRange", value: search.topRange.rawValue))
         }
         if search.sorting == .random, let seed, !seed.isEmpty {
-            url.queryItems?.append(URLQueryItem(name: "seed", value: seed))
+            items.append(URLQueryItem(name: "seed", value: seed))
         }
+        url.queryItems = items
         var request = URLRequest(
             url: url.url!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let key = try normalizedAPIKey(apiKey)
         if !key.isEmpty { request.setValue(key, forHTTPHeaderField: "X-API-Key") }
         return request
     }
@@ -140,11 +385,8 @@ struct WallhavenService: Sendable {
         } catch {
             throw WallhavenError.invalidResponse
         }
-        let photos = result.data.filter {
-            $0.purity == "sfw" && $0.dimension_x >= 1920 && $0.dimension_y >= 1080
-                && $0.dimension_x > $0.dimension_y
-                && (search.category == .all || $0.category == search.category.rawValue)
-        }
+        let hasAPIKey = !(try Self.normalizedAPIKey(apiKey)).isEmpty
+        let photos = result.data.filter { search.accepts($0, hasAPIKey: hasAPIKey) }
         // Keep the API order while bounding thumbnail traffic to four concurrent downloads.
         let downloaded = await withTaskGroup(of: (Int, WallpaperItem?).self) { group in
             var next = 0
@@ -301,7 +543,7 @@ struct WallhavenService: Sendable {
         }
     }
 
-    private struct Photo: Decodable, Sendable {
+    fileprivate struct Photo: Decodable, Sendable {
         var id: String
         var category: String
         var purity: String
@@ -310,6 +552,50 @@ struct WallhavenService: Sendable {
         var path: URL
         var thumbs: Thumbnails
         struct Thumbnails: Decodable, Sendable { var large: URL }
+    }
+}
+
+extension WallhavenSearch {
+    /// An empty selection would match nothing, so it falls back to every category.
+    var effectiveCategories: Set<WallhavenCategory> {
+        categories.isEmpty ? Set(WallhavenCategory.allCases) : categories
+    }
+
+    /// NSFW needs an API key; without one, or with nothing selected, results stay SFW.
+    func effectivePurity(hasAPIKey: Bool) -> Set<WallhavenPurity> {
+        let allowed = hasAPIKey ? purity : purity.subtracting([.nsfw])
+        return allowed.isEmpty ? [.sfw] : allowed
+    }
+
+    var validResolutions: Set<String> { resolutions.filter(Self.isResolution) }
+
+    // Account defaults may override request filters, so purity, category and size are
+    // checked again locally. Aspect ratios are left to the API except for orientation.
+    fileprivate func accepts(_ photo: WallhavenService.Photo, hasAPIKey: Bool) -> Bool {
+        guard let purity = WallhavenPurity(rawValue: photo.purity),
+            effectivePurity(hasAPIKey: hasAPIKey).contains(purity),
+            let category = WallhavenCategory(rawValue: photo.category),
+            effectiveCategories.contains(category)
+        else { return false }
+        let width = photo.dimension_x
+        let height = photo.dimension_y
+        switch resolutionMode {
+        case .atLeast:
+            if let minimum = Self.size(atLeast), width < minimum.0 || height < minimum.1 {
+                return false
+            }
+        case .exact:
+            let exact = validResolutions
+            if !exact.isEmpty, !exact.contains("\(width)x\(height)") { return false }
+        }
+        if ratios == ["landscape"] { return width > height }
+        if ratios == ["portrait"] { return height > width }
+        return true
+    }
+
+    private static func size(_ value: String) -> (Int, Int)? {
+        let parts = value.split(separator: "x").compactMap { Int($0) }
+        return parts.count == 2 && isResolution(value) ? (parts[0], parts[1]) : nil
     }
 }
 

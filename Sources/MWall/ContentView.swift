@@ -15,6 +15,7 @@ struct ContentView: View {
     @EnvironmentObject private var store: AppStore
     @ViewState private var page: MWallPage
     @ViewState private var darkPreview = true
+    @ViewState private var showsWallhavenFilters = false
 
     init(initialPage: MWallPage = .wallpapers, darkPreview: Bool = true) {
         _page = ViewState(initialValue: initialPage)
@@ -118,7 +119,20 @@ struct ContentView: View {
                 wallhavenFilters
             }
 
-            if store.visibleWallpapers.isEmpty {
+            if store.settings.currentSource == .wallhaven && showsWallhavenFilters {
+                // The panel takes the grid's place so every option stays readable at minimum height.
+                WallhavenFilterPanel(
+                    search: $store.settings.wallhavenSearch,
+                    hasAPIKey: store.hasWallhavenAPIKey,
+                    importURL: {
+                        store.importWallhavenSearchFromPasteboard()
+                        showsWallhavenFilters = false
+                    },
+                    apply: { showsWallhavenFilters = false }
+                )
+                .disabled(store.isWorking)
+                .padding(.horizontal, 16).padding(.bottom, 12)
+            } else if store.visibleWallpapers.isEmpty {
                 ContentUnavailableView {
                     Label(emptyTitle, systemImage: "photo.on.rectangle")
                 } description: {
@@ -149,7 +163,10 @@ struct ContentView: View {
             }
             if store.settings.currentSource == .wallhaven {
                 HStack {
-                    Text("SFW · 横屏 · 1080p+").font(.caption).foregroundStyle(.secondary)
+                    Text(store.settings.wallhavenSearch.summary)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.tail)
+                        .help(store.settings.wallhavenSearch.summary)
                     Spacer()
                     Button {
                         store.refreshWallhaven(page: store.wallhavenPage - 1, preserveSeed: true)
@@ -177,24 +194,28 @@ struct ContentView: View {
     private var wallhavenFilters: some View {
         VStack(spacing: 10) {
             HStack {
-                TextField("搜索关键词或标签", text: $store.settings.wallhavenSearch.query)
+                TextField("关键词、标签或 Wallhaven 链接", text: $store.settings.wallhavenSearch.query)
                     .textFieldStyle(.roundedBorder)
-                    .onSubmit { store.refreshWallhaven() }
-                Button("搜索") { store.refreshWallhaven() }
-            }
-            HStack(spacing: 16) {
-                Picker("分类", selection: $store.settings.wallhavenSearch.category) {
-                    ForEach(WallhavenCategory.allCases) { Text($0.title).tag($0) }
+                    .onSubmit { store.searchWallhaven() }
+                Button("搜索") { store.searchWallhaven() }
+                Button {
+                    showsWallhavenFilters.toggle()
+                } label: {
+                    Label(
+                        "筛选",
+                        systemImage: store.settings.wallhavenSearch.hasCustomFilters
+                            ? "line.3.horizontal.decrease.circle.fill"
+                            : "line.3.horizontal.decrease.circle")
                 }
-                Picker("排序", selection: $store.settings.wallhavenSearch.sorting) {
-                    ForEach(WallhavenSorting.allCases) { Text($0.title).tag($0) }
-                }
+                .help(showsWallhavenFilters ? "收起筛选并搜索" : "展开全部筛选条件")
             }
         }
         .disabled(store.isWorking)
         .padding(.horizontal, 16).padding(.bottom, 12)
-        .onChange(of: store.settings.wallhavenSearch.category) { _, _ in store.refreshWallhaven() }
-        .onChange(of: store.settings.wallhavenSearch.sorting) { _, _ in store.refreshWallhaven() }
+        // Filters are batched: closing the panel runs one search instead of one per toggle.
+        .onChange(of: showsWallhavenFilters) { _, shown in
+            if !shown && !store.wallhavenResultsMatchSearch { store.refreshWallhaven() }
+        }
     }
 
     private var paletteEditor: some View {
@@ -351,7 +372,7 @@ struct ContentView: View {
                         Button("移除密钥", role: .destructive) { store.removeWallhavenAPIKey() }
                     }
                 }
-                Text("密钥可在 Wallhaven 账户设置中获取。未填写也可搜索；始终只显示 SFW 壁纸。")
+                Text("密钥可在 Wallhaven 账户设置中获取。未填写也可搜索 SFW 与 Sketchy 内容；NSFW 筛选需要密钥。")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Stepper(
@@ -451,7 +472,7 @@ struct ContentView: View {
         case .history: "应用过的壁纸会出现在这里。"
         case .local: "添加本地文件夹，即可浏览其中的图片。"
         case .unsplash: "在设置中填入 Access Key，再点“换一批”。"
-        case .wallhaven: "默认浏览二次元横屏壁纸，也可以搜索关键词或切换分类。API Key 为可选项。"
+        case .wallhaven: "默认浏览二次元横屏壁纸，可搜索关键词、展开筛选，或粘贴 Wallhaven 搜索链接。API Key 为可选项。"
         default: "重新扫描图库后再试。"
         }
     }
@@ -526,5 +547,184 @@ struct WallpaperThumbnail: View {
             Rectangle().fill(.quaternary)
                 .overlay { Image(systemName: "photo").foregroundStyle(.secondary) }
         }
+    }
+}
+
+private struct WallhavenFilterPanel: View {
+    @Binding var search: WallhavenSearch
+    let hasAPIKey: Bool
+    let importURL: () -> Void
+    let apply: () -> Void
+
+    private let chipColumns = [GridItem(.adaptive(minimum: 84), spacing: 8)]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    section("分类") {
+                        HStack(spacing: 8) {
+                            ForEach(WallhavenCategory.allCases) { category in
+                                Toggle(category.title, isOn: member(category, in: $search.categories))
+                            }
+                        }
+                    }
+                    section("内容分级") {
+                        HStack(spacing: 8) {
+                            ForEach(WallhavenPurity.allCases) { purity in
+                                Toggle(purity.title, isOn: member(purity, in: $search.purity))
+                                    .disabled(purity == .nsfw && !hasAPIKey)
+                                    .help(purity == .nsfw && !hasAPIKey ? "需要先在设置中保存 API Key" : "")
+                            }
+                        }
+                    }
+                    section("排序") {
+                        HStack(spacing: 12) {
+                            Picker("排序", selection: $search.sorting) {
+                                ForEach(WallhavenSorting.allCases) { Text($0.title).tag($0) }
+                            }
+                            .labelsHidden().fixedSize()
+                            Picker("顺序", selection: $search.order) {
+                                ForEach(WallhavenOrder.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented).labelsHidden().fixedSize()
+                            .disabled(search.sorting == .random)
+                            if search.sorting == .toplist {
+                                Picker("时间范围", selection: $search.topRange) {
+                                    ForEach(WallhavenTopRange.allCases) { Text($0.title).tag($0) }
+                                }
+                                .labelsHidden().fixedSize()
+                            }
+                        }
+                    }
+                    section("分辨率") {
+                        Picker("分辨率方式", selection: $search.resolutionMode) {
+                            ForEach(WallhavenResolutionMode.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        switch search.resolutionMode {
+                        case .atLeast:
+                            Picker("最低分辨率", selection: $search.atLeast) {
+                                Text("不限").tag("")
+                                ForEach(WallhavenOptions.resolutionGroups, id: \.title) { group in
+                                    Section(group.title) {
+                                        ForEach(group.values, id: \.self) {
+                                            Text(WallhavenOptions.resolutionTitle($0)).tag($0)
+                                        }
+                                    }
+                                }
+                            }
+                            .labelsHidden().fixedSize()
+                        case .exact:
+                            chipGroups(WallhavenOptions.resolutionGroups, selection: $search.resolutions) {
+                                WallhavenOptions.resolutionTitle($0)
+                            }
+                        }
+                    }
+                    section("比例", clear: search.ratios.isEmpty ? nil : { search.ratios = [] }) {
+                        chipGroups(WallhavenOptions.ratioGroups, selection: $search.ratios) {
+                            WallhavenOptions.ratioTitle($0)
+                        }
+                    }
+                    section("颜色", clear: search.color == nil ? nil : { search.color = nil }) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 24), spacing: 6)], spacing: 6) {
+                            ForEach(WallhavenOptions.colors, id: \.self) { hex in
+                                swatch(hex)
+                            }
+                        }
+                    }
+                }
+                .toggleStyle(.button)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: .infinity)
+            Divider()
+            HStack {
+                Button("导入链接", systemImage: "doc.on.clipboard", action: importURL)
+                    .help("从剪贴板导入 wallhaven.cc 搜索链接的全部条件")
+                Spacer()
+                Button("重置") { search = search.resettingFilters() }
+                    .disabled(!search.hasCustomFilters)
+                Button("应用", action: apply).buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(12)
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(nsColor: .separatorColor)))
+    }
+
+    private func section<Content: View>(
+        _ title: String, clear: (() -> Void)? = nil, @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if let clear {
+                    Button("不限", action: clear).buttonStyle(.borderless).font(.caption)
+                }
+            }
+            content()
+        }
+    }
+
+    private func chipGroups(
+        _ groups: [(title: String, values: [String])], selection: Binding<Set<String>>,
+        title: @escaping (String) -> String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(groups, id: \.title) { group in
+                Text(group.title).font(.caption2).foregroundStyle(.tertiary)
+                LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
+                    ForEach(group.values, id: \.self) { value in
+                        Toggle(isOn: member(value, in: selection)) {
+                            Text(title(value)).monospacedDigit().frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func swatch(_ hex: String) -> some View {
+        let selected = search.color == hex
+        return Button {
+            search.color = selected ? nil : hex
+        } label: {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color(hex: hex))
+                .frame(height: 24)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(Color.accentColor, lineWidth: selected ? 2 : 0)
+                        .padding(-3))
+        }
+        .buttonStyle(.plain)
+        .help("#\(hex)")
+        .accessibilityLabel("颜色 #\(hex)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func member<T: Hashable>(_ value: T, in set: Binding<Set<T>>) -> Binding<Bool> {
+        Binding(
+            get: { set.wrappedValue.contains(value) },
+            set: { isOn in
+                if isOn { set.wrappedValue.insert(value) } else { set.wrappedValue.remove(value) }
+            })
+    }
+}
+
+private extension Color {
+    init(hex: String) {
+        let value = UInt32(hex, radix: 16) ?? 0
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255)
     }
 }

@@ -447,6 +447,31 @@ final class AppStore: ObservableObject {
         loadedWallhavenSearch == settings.wallhavenSearch
     }
 
+    /// Searches the field text, or adopts every filter from a pasted wallhaven.cc search URL.
+    func searchWallhaven() {
+        if let search = WallhavenSearch(webURL: settings.wallhavenSearch.query) {
+            adoptWallhavenSearch(search)
+        }
+        refreshWallhaven()
+    }
+
+    func importWallhavenSearchFromPasteboard() {
+        guard let text = NSPasteboard.general.string(forType: .string),
+            let search = WallhavenSearch(webURL: text)
+        else {
+            lastMessage = "剪贴板里没有 Wallhaven 搜索链接"
+            return
+        }
+        adoptWallhavenSearch(search)
+        refreshWallhaven()
+    }
+
+    private func adoptWallhavenSearch(_ search: WallhavenSearch) {
+        var search = search
+        search.purity = search.effectivePurity(hasAPIKey: hasWallhavenAPIKey)
+        settings.wallhavenSearch = search
+    }
+
     func refreshWallhaven(page: Int = 1, preserveSeed: Bool = false) {
         guard !isWorking else { return }
         let search = settings.wallhavenSearch
@@ -466,7 +491,7 @@ final class AppStore: ObservableObject {
                 }
                 lastMessage =
                     result.items.isEmpty
-                    ? "没有匹配的壁纸，试试其他关键词或分类。"
+                    ? "没有匹配的壁纸，试试其他关键词或筛选条件。"
                     : "已加载 \(result.items.count) 张 Wallhaven 壁纸"
                 if result.failedPreviews > 0 {
                     lastMessage += "，\(result.failedPreviews) 张预览下载失败，可重试。"
@@ -507,6 +532,8 @@ final class AppStore: ObservableObject {
             try WallhavenCredentials.remove()
             wallhavenAPIKey = ""
             hasWallhavenAPIKey = false
+            settings.wallhavenSearch.purity = settings.wallhavenSearch.effectivePurity(
+                hasAPIKey: false)
             lastMessage = "已移除 Wallhaven API Key，将使用匿名访问。"
         } catch {
             lastMessage = error.localizedDescription
