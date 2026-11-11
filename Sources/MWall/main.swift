@@ -14,8 +14,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.title = "MW"
-            button.font = .systemFont(ofSize: 13, weight: .semibold)
+            let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns")
+            let icon = iconURL.flatMap { NSImage(contentsOf: $0) }
+                ?? NSImage(
+                    systemSymbolName: "photo.on.rectangle.angled", accessibilityDescription: "MWall")
+            icon?.size = NSSize(width: 22, height: 22)
+            button.image = icon
+            button.imagePosition = .imageOnly
+            button.toolTip = "MWall"
+            button.setAccessibilityLabel("MWall")
             button.target = self
             button.action = #selector(togglePopover(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
