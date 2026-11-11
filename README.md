@@ -156,12 +156,28 @@ MWALL_CODEX_CLI=/opt/homebrew/bin/codex swift test
 
 测试使用临时配置，检查无关偏好保留、重复更新和版本冲突，不修改用户的 Codex 配置。
 
+## Herdr 配色同步
+
+在“设置 → 同步到应用”中启用 **Herdr**，然后生成主题。MWall 为 Herdr 的终端与面板导出背景、前景、选区、光标、16 色 ANSI 调色板和强调色。配置目录优先使用 `HERDR_APP_HOME`，否则使用 `~/.config/herdr-app`。
+
+首次生成后，在 Herdr 中分别选中深浅色主题，或在 Herdr 运行时执行：
+
+```sh
+herdr-app do app.theme --name mwall-dark
+herdr-app do app.theme --name mwall-light
+```
+
+Herdr 将两种选择保存在当前布局中，并按系统外观或其 `appearance` 设置切换；其他布局需要分别选择。后续 MWall 更新同名主题文件时，Herdr 实时加载，无需重启。`mwall` 是生成时系统外观对应的固定版本，通常优先选择深浅色配对。
+
+MWall 只写入自己的三个主题文件，不改动 Herdr 的设置、布局、布局状态或其他主题。重复生成相同配色不会触发文件重写。新安装默认包含 Herdr；已有用户的同步目标选择保持不变。
+
 ## 生成的主题文件
 
 - Kitty：`~/.config/kitty/themes/mwall.conf`、`mwall-dark.conf`、`mwall-light.conf`
 - Alacritty：`~/.config/alacritty/themes/mwall.toml`、`mwall-dark.toml`、`mwall-light.toml`
 - WezTerm：`~/.config/wezterm/colors/mwall.toml`、`mwall-dark.toml`、`mwall-light.toml`
 - Ghostty：`~/.config/ghostty/themes/mwall`、`mwall-dark`、`mwall-light`
+- Herdr：`~/.config/herdr-app/themes/mwall.json`、`mwall-dark.json`、`mwall-light.json`
 - iTerm2：`~/Library/Application Support/MWall/MWall.itermcolors`、`MWall Dark.itermcolors`、`MWall Light.itermcolors`
 - Terminal.app 辅助脚本：`~/Library/Application Support/MWall/Apply-MWall-Terminal.applescript` 及深浅色版本
 - Neovim：`~/.config/nvim/colors/mwall.lua`、`mwall-dark.lua`、`mwall-light.lua`

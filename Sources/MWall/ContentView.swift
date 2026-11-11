@@ -317,7 +317,7 @@ struct ContentView: View {
                         ))
                 }
                 Text(
-                    "终端和编辑器首次生成后选择 mwall 主题。Pi 支持实时更新；Codex CLI 需要新建会话。Codex App 自动同步浅色与深色配色，重启 App 后生效。"
+                    "终端和编辑器首次生成后选择 mwall 主题。Herdr 首次选择 mwall-dark / mwall-light，之后实时更新。Pi 支持实时更新；Codex CLI 需要新建会话。Codex App 自动同步浅色与深色配色，重启 App 后生效。"
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

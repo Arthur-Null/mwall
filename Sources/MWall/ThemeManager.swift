@@ -45,6 +45,7 @@ enum ThemeManager {
         switch target {
         case .kitty: writeKitty
         case .ghostty: writeGhostty
+        case .herdrApp: { palettes, _ in try AgentThemeWriter.writeHerdr(palettes) }
         case .neovim: writeNeovim
         case .starship: writeStarship
         case .pi: { try AgentThemeWriter.writePi($0, $1) }

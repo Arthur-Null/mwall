@@ -26,6 +26,27 @@ enum AgentThemeWriter {
         }
     }
 
+    static func writeHerdr(
+        _ palettes: TerminalPalettePair,
+        directory: URL? = nil
+    ) throws -> [URL] {
+        let root = directory ?? configDirectory(variable: "HERDR_APP_HOME", fallback: ".config/herdr-app")
+        return try variants(palettes).map { name, palette in
+            let payload: [String: Any] = [
+                "background": palette.background.hex,
+                "foreground": palette.foreground.hex,
+                "selection": palette.selectionBackground.hex,
+                "cursor": palette.cursor.hex,
+                "ansi": (palette.normal + palette.bright).map(\.hex),
+                "colors": ["accent": palette.accent.hex],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+            let url = root.appendingPathComponent("themes/\(name).json")
+            try write(data + Data("\n".utf8), to: url)
+            return url
+        }
+    }
+
     static func writeCodexCLI(
         _ palettes: TerminalPalettePair,
         _ wallpaperURL: URL,

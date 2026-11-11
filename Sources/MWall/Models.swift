@@ -145,6 +145,7 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
     case alacritty
     case wezterm
     case ghostty
+    case herdrApp = "herdr-app"
     case neovim
     case starship
     case pi
@@ -156,13 +157,14 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static let allCases: [ThemeTarget] = [
-        .kitty, .ghostty, .neovim, .starship, .pi, .codexCLI, .codexApp,
+        .kitty, .ghostty, .herdrApp, .neovim, .starship, .pi, .codexCLI, .codexApp,
     ]
 
     var displayName: String {
         switch self {
         case .kitty: "Kitty"
         case .ghostty: "Ghostty"
+        case .herdrApp: "Herdr"
         case .neovim: "Neovim"
         case .starship: "Starship"
         case .pi: "Pi"
@@ -177,7 +179,7 @@ enum ThemeTarget: String, Codable, CaseIterable, Identifiable {
 
     static let supported: Set<ThemeTarget> = Set(allCases)
     static let defaultEnabled: [ThemeTarget] = [
-        .kitty, .ghostty, .neovim, .starship, .pi, .codexCLI,
+        .kitty, .ghostty, .herdrApp, .neovim, .starship, .pi, .codexCLI,
     ]
 }
 

@@ -15,7 +15,7 @@ import Testing
 
 @Test func agentThemeDirectoriesRespectEnvironment() {
     let home = URL(fileURLWithPath: "/tmp/mwall test home")
-    for (variable, fallback) in [("CODEX_HOME", ".codex"), ("PI_CODING_AGENT_DIR", ".pi/agent")] {
+    for (variable, fallback) in [("CODEX_HOME", ".codex"), ("PI_CODING_AGENT_DIR", ".pi/agent"), ("HERDR_APP_HOME", ".config/herdr-app")] {
         #expect(AgentThemeWriter.configDirectory(
             variable: variable, fallback: fallback, environment: [:], homeDirectory: home
         ) == home.appendingPathComponent(fallback))
@@ -121,6 +121,62 @@ func piReloadsGeneratedAgentThemes() throws {
     process.waitUntilExit()
     #expect(process.terminationStatus == 0, Comment(rawValue: log))
     #expect(log.contains("Pi generated theme reload PASS"), Comment(rawValue: log))
+}
+
+@Test func herdrThemeTargetPreservesExistingSelections() throws {
+    #expect(ThemeTarget.supported.contains(.herdrApp))
+    #expect(ThemeTarget.defaultEnabled.contains(.herdrApp))
+    let saved = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"enabledThemeTargets":["kitty"]}"#.utf8))
+    #expect(saved.enabledThemeTargets == [.kitty])
+    var changed = saved
+    changed.enabledThemeTargets.insert(.herdrApp)
+    #expect(try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(changed)) == changed)
+}
+
+@Test func herdrThemesPreserveConfigurationAndReloadOnlyWhenChanged() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("MWall-herdr-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let themes = root.appendingPathComponent("themes")
+    let layoutState = root.appendingPathComponent("layouts/.state")
+    try FileManager.default.createDirectory(at: themes, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: layoutState, withIntermediateDirectories: true)
+    let preserved: [(URL, Data)] = [
+        (root.appendingPathComponent("settings.json"), Data(#"{"theme":"paper","font":"Custom Font","zoom":1.2}"#.utf8)),
+        (layoutState.appendingPathComponent("main.json"), Data(#"{"theme":{"dark":"ink","light":"paper"}}"#.utf8)),
+        (themes.appendingPathComponent("personal.json"), Data(#"{"keep":"my theme"}"#.utf8)),
+    ]
+    for (url, data) in preserved { try data.write(to: url) }
+    var palettes = agentPalettes(accent: RGBColor(r: 34, g: 136, b: 187))
+    palettes.dark.accentOverride = RGBColor(r: 180, g: 95, b: 60)
+    palettes.dark.bright = palettes.dark.normal.reversed()
+    let files = try AgentThemeWriter.writeHerdr(palettes, directory: root)
+    #expect(Set(files.map(\.lastPathComponent)) == ["mwall.json", "mwall-dark.json", "mwall-light.json"])
+    for (name, expected) in [("mwall-dark", palettes.dark), ("mwall-light", palettes.light), ("mwall", palettes.current)] {
+        let json = try #require(JSONSerialization.jsonObject(
+            with: Data(contentsOf: themes.appendingPathComponent("\(name).json"))) as? [String: Any])
+        #expect(json["background"] as? String == expected.background.hex)
+        #expect(json["foreground"] as? String == expected.foreground.hex)
+        #expect(json["selection"] as? String == expected.selectionBackground.hex)
+        #expect(json["cursor"] as? String == expected.cursor.hex)
+        let ansi = try #require(json["ansi"] as? [String])
+        #expect(ansi.count == 16)
+        #expect(Array(ansi.prefix(8)) == expected.normal.map(\.hex))
+        #expect(Array(ansi.suffix(8)) == expected.bright.map(\.hex))
+        #expect((json["colors"] as? [String: String])?["accent"] == expected.accent.hex)
+    }
+    let sentinel = Date(timeIntervalSince1970: 1_000)
+    for file in files { try FileManager.default.setAttributes([.modificationDate: sentinel], ofItemAtPath: file.path) }
+    _ = try AgentThemeWriter.writeHerdr(palettes, directory: root)
+    for file in files {
+        #expect(try file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate == sentinel)
+    }
+    palettes.dark.background = RGBColor(r: 10, g: 15, b: 20)
+    _ = try AgentThemeWriter.writeHerdr(palettes, directory: root)
+    let dark = themes.appendingPathComponent("mwall-dark.json")
+    let updated = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: dark)) as? [String: Any])
+    #expect(updated["background"] as? String == "#0A0F14")
+    #expect(try dark.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate != sentinel)
+    for (url, data) in preserved { #expect(try Data(contentsOf: url) == data) }
 }
 
 private func agentPalettes(accent: RGBColor) -> TerminalPalettePair {
