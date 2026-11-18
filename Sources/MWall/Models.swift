@@ -90,6 +90,9 @@ struct AppSettings: Codable, Equatable {
     var unsplashCacheLimitMB = 600
     var wallhavenSearch = WallhavenSearch()
     var wallhavenCacheLimitMB = 600
+    var automaticallyChecksForUpdates = true
+    var lastUpdateCheck: TimeInterval = 0
+    var skippedUpdateVersion = ""
 
     init() {}
 
@@ -98,6 +101,7 @@ struct AppSettings: Codable, Equatable {
         case reloadTerminalsAfterThemeChange, launchAtLogin, enabledThemeTargets
         case currentSource, unsplashAccessKey, unsplashCacheLimitMB
         case wallhavenSearch, wallhavenCacheLimitMB
+        case automaticallyChecksForUpdates, lastUpdateCheck, skippedUpdateVersion
     }
 
     init(from decoder: Decoder) throws {
@@ -123,6 +127,11 @@ struct AppSettings: Codable, Equatable {
             ?? WallhavenSearch()
         wallhavenCacheLimitMB =
             try c.decodeIfPresent(Int.self, forKey: .wallhavenCacheLimitMB) ?? 600
+        automaticallyChecksForUpdates =
+            try c.decodeIfPresent(Bool.self, forKey: .automaticallyChecksForUpdates) ?? true
+        lastUpdateCheck = try c.decodeIfPresent(TimeInterval.self, forKey: .lastUpdateCheck) ?? 0
+        skippedUpdateVersion =
+            try c.decodeIfPresent(String.self, forKey: .skippedUpdateVersion) ?? ""
     }
 }
 

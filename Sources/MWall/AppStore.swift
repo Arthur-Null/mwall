@@ -28,6 +28,9 @@ final class AppStore: ObservableObject {
     @Published var previewPalettes: TerminalPalettePair?
     @Published var isPreviewLoading = false
     @Published var previewError: String?
+    @Published private(set) var isCheckingForUpdates = false
+    @Published private(set) var isInstallingUpdate = false
+    private var updateTimer: Timer?
     private let persistsChanges: Bool
     private let maxHistoryCount = 80
     private let wallhavenService: WallhavenService
@@ -146,6 +149,7 @@ final class AppStore: ObservableObject {
         settings.launchAtLogin = LoginItemService.isEnabled
         hasWallhavenAPIKey = WallhavenCredentials.isStored()
         refreshLibrary()
+        scheduleUpdateChecks()
     }
 
     var visibleWallpapers: [WallpaperItem] {
@@ -343,6 +347,92 @@ final class AppStore: ObservableObject {
             settings.launchAtLogin = LoginItemService.isEnabled
             lastMessage = error.localizedDescription
             NSAlert(error: error).runModal()
+        }
+    }
+
+    private func scheduleUpdateChecks() {
+        guard UpdateService.canInstall else { return }
+        checkForUpdatesIfDue()
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { _ in
+            Task { @MainActor [weak self] in self?.checkForUpdatesIfDue() }
+        }
+    }
+
+    private func checkForUpdatesIfDue() {
+        let elapsed = Date().timeIntervalSince1970 - settings.lastUpdateCheck
+        guard settings.automaticallyChecksForUpdates, elapsed >= UpdateService.checkInterval
+        else { return }
+        checkForUpdates(userInitiated: false)
+    }
+
+    func checkForUpdates(userInitiated: Bool) {
+        guard !isCheckingForUpdates, !isInstallingUpdate else { return }
+        isCheckingForUpdates = true
+        if userInitiated { lastMessage = "正在检查更新..." }
+        Task {
+            defer { isCheckingForUpdates = false }
+            do {
+                let release = try await UpdateService.fetchLatestRelease()
+                settings.lastUpdateCheck = Date().timeIntervalSince1970
+                guard UpdateService.isVersion(release.version, newerThan: UpdateService.currentVersion)
+                else {
+                    if userInitiated { lastMessage = "已是最新版本 \(UpdateService.currentVersion)" }
+                    return
+                }
+                guard userInitiated || release.version != settings.skippedUpdateVersion else { return }
+                lastMessage = "发现新版本 \(release.version)"
+                promptForUpdate(release)
+            } catch {
+                if userInitiated {
+                    lastMessage = "检查更新失败：\(error.localizedDescription)"
+                    NSAlert(error: error).runModal()
+                } else {
+                    NSLog("MWall update check failed: \(error)")
+                }
+            }
+        }
+    }
+
+    private func promptForUpdate(_ release: AppRelease) {
+        let alert = NSAlert()
+        alert.messageText = "MWall \(release.version) 可用"
+        let notes = release.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let summary = notes.count > 600 ? String(notes.prefix(600)) + "…" : notes
+        alert.informativeText =
+            "当前版本为 \(UpdateService.currentVersion)。"
+            + (summary.isEmpty ? "" : "\n\n\(summary)")
+        let canInstall = UpdateService.canInstall
+        alert.addButton(withTitle: canInstall ? "立即更新" : "打开下载页")
+        alert.addButton(withTitle: "稍后")
+        alert.addButton(withTitle: "跳过此版本")
+        NSApp.activate(ignoringOtherApps: true)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            if canInstall {
+                installUpdate(release)
+            } else {
+                NSWorkspace.shared.open(release.pageURL)
+            }
+        case .alertThirdButtonReturn:
+            settings.skippedUpdateVersion = release.version
+        default:
+            break
+        }
+    }
+
+    private func installUpdate(_ release: AppRelease) {
+        isInstallingUpdate = true
+        lastMessage = "正在下载 MWall \(release.version)..."
+        Task {
+            do {
+                let appURL = try await UpdateService.install(release)
+                try UpdateService.relaunch(appURL)
+                NSApp.terminate(nil)
+            } catch {
+                isInstallingUpdate = false
+                lastMessage = "更新失败：\(error.localizedDescription)"
+                NSAlert(error: error).runModal()
+            }
         }
     }
 

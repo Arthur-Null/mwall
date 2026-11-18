@@ -306,6 +306,13 @@ struct ContentView: View {
                     isOn: Binding(
                         get: { store.settings.launchAtLogin }, set: { store.setLaunchAtLogin($0) }
                     ))
+                Toggle("自动检查更新", isOn: $store.settings.automaticallyChecksForUpdates)
+                LabeledContent("版本 \(UpdateService.currentVersion)") {
+                    Button(store.isInstallingUpdate ? "正在更新..." : "检查更新") {
+                        store.checkForUpdates(userInitiated: true)
+                    }
+                    .disabled(store.isCheckingForUpdates || store.isInstallingUpdate)
+                }
             }
             Section {
                 ForEach(ThemeTarget.allCases) { target in

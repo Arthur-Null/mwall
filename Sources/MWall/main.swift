@@ -62,6 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(
             NSMenuItem(title: "换下一张", action: #selector(applyRandomWallpaper), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "重新扫描图库", action: #selector(refreshLibrary), keyEquivalent: ""))
+        menu.addItem(
+            NSMenuItem(title: "检查更新...", action: #selector(checkForUpdates), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "退出 MWall", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
@@ -76,6 +78,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func refreshLibrary() {
         store.refreshLibrary()
+    }
+
+    @objc private func checkForUpdates() {
+        store.checkForUpdates(userInitiated: true)
     }
 
     @objc private func quit() {
