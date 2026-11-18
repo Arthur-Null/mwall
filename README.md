@@ -44,7 +44,7 @@ MWALL_SANDBOX=1 tools/package_app.sh
 解压后将 `MWall.app` 拖入“应用程序”。发布包内置 Aether，无需另外安装 Go 或 Swift。每个 ZIP 都附有 `.sha256` 文件，在同一目录执行以下命令即可校验：
 
 ```sh
-shasum -a 256 -c MWall-v0.3.0-macos-arm64.zip.sha256
+shasum -a 256 -c MWall-v0.3.1-macos-arm64.zip.sha256
 ```
 
 应用要求 macOS 14 或更高版本，目前采用临时签名，尚未使用 Apple Developer ID 签名或通过公证。首次打开可能被系统拦截；确认来源和校验值后，可在“系统设置 → 隐私与安全性”中允许打开，无需关闭系统安全保护。
