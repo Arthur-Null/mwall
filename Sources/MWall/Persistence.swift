@@ -21,8 +21,9 @@ enum Persistence {
             return fallback
         }
         do {
-            return try JSONDecoder().decode(T.self, from: data)
+            return try JSONDecoder.iso8601.decode(T.self, from: data)
         } catch {
+            NSLog("MWall load failed: \(url.path): \(error)")
             return fallback
         }
     }
@@ -34,6 +35,15 @@ enum Persistence {
         } catch {
             NSLog("MWall save failed: \(url.path): \(error)")
         }
+    }
+}
+
+// Must match JSONEncoder.pretty's date strategy, or entries with dates fail to load.
+private extension JSONDecoder {
+    static var iso8601: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 }
 
